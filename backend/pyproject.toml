@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+addopts = "-p no:cacheprovider"
+pythonpath = ["."]
+testpaths = ["tests"]
+norecursedirs = [".venv", "pytest-cache-files-*"]

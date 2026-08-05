@@ -118,24 +118,26 @@ class GeminiService:
             )
 
         try:
-            response = httpx.post(
-                "https://generativelanguage.googleapis.com/v1beta/interactions",
-                headers={
-                    "x-goog-api-key": self.api_key,
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model,
-                    "input": input_data,
-                    "store": False,
-                    "response_format": {
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": output_model.model_json_schema(),
+            # Connect directly to Gemini. Local development tools can inject a
+            # loopback proxy that is not available to the running API process.
+            with httpx.Client(timeout=90.0, trust_env=False) as client:
+                response = client.post(
+                    "https://generativelanguage.googleapis.com/v1beta/interactions",
+                    headers={
+                        "x-goog-api-key": self.api_key,
+                        "Content-Type": "application/json",
                     },
-                },
-                timeout=90.0,
-            )
+                    json={
+                        "model": self.model,
+                        "input": input_data,
+                        "store": False,
+                        "response_format": {
+                            "type": "text",
+                            "mime_type": "application/json",
+                            "schema": output_model.model_json_schema(),
+                        },
+                    },
+                )
             response.raise_for_status()
             output_text = self._extract_output_text(response.json())
             return output_model.model_validate_json(output_text)

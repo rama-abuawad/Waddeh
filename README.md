@@ -2,7 +2,7 @@
 
 > لأن الفهم يبدأ بالوضوح — Because understanding starts with clarity.
 
-Waddeh is an Arabic-first reading companion designed to make complex Arabic content easier to understand without removing its meaning. It combines meaning-preserving clarification, translation, contextual vocabulary support, and adaptive learning in a bilingual, mobile-friendly experience.
+Waddeh is an Arabic-first reading companion designed to make complex Arabic content easier to understand without removing its meaning. It combines meaning-preserving clarification, translation, contextual vocabulary support, and comprehension tools in a bilingual, mobile-friendly experience.
 
 ## Product vision
 
@@ -35,10 +35,6 @@ Adds selective diacritics to difficult or ambiguous words without filling the en
 ### Saved vocabulary
 
 Stores useful words in a device-local vocabulary collection that remains available across reading sessions.
-
-### Adaptive learning
-
-Adjusts the clarification level using completed readings and grounded comprehension checks.
 
 ### Change Map
 
@@ -168,7 +164,7 @@ backend/.venv/bin/python -m pytest backend/tests
 
 - Simplification interactions are configured as stateless.
 - Uploaded PDFs are processed for the active request and are not written to local server storage.
-- Vocabulary and adaptive progress remain in browser storage on the current device.
+- Vocabulary and reading history remain in browser storage on the current device.
 - Sensitive or personal documents should not be used as public samples.
 
 ## Documentation
@@ -179,7 +175,7 @@ backend/.venv/bin/python -m pytest backend/tests
 
 ## Project status
 
-The current competition MVP includes the complete reading, translation, vocabulary, adaptive learning, PDF, PWA, and bilingual interface flow. Future work may extend OCR, grounded document chat, accounts, synchronized progress, and evaluation tooling.
+The current competition MVP includes the complete reading, translation, vocabulary, comprehension, PDF, PWA, and bilingual interface flow. Future work may extend OCR, grounded document chat, accounts, synchronized progress, and evaluation tooling.
 
 ## License
 

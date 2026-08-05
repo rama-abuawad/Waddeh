@@ -24,11 +24,9 @@ interface SavedWord extends WordExplanation {
 
 interface LearningProfile {
   readings: number;
-  checks: number;
-  correctChecks: number;
 }
 
-const initialProfile: LearningProfile = { readings: 0, checks: 0, correctChecks: 0 };
+const initialProfile: LearningProfile = { readings: 0 };
 
 const exampleText =
   "يتعين على المتقدم استيفاء جميع المتطلبات المنصوص عليها قبل انقضاء المهلة المحددة، ولن تُقبل الطلبات التي تُرسل بعد تاريخ 30 أغسطس 2026.";
@@ -52,7 +50,6 @@ export default function Home() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("text");
   const [reader, setReader] = useState<ReaderType>("general_reader");
-  const [adaptiveMode, setAdaptiveMode] = useState(true);
   const [profile, setProfile] = useState<LearningProfile>(initialProfile);
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
   const [result, setResult] = useState<SimplificationResult | null>(null);
@@ -77,13 +74,7 @@ export default function Home() {
   const selectedAudience =
     audiences.find((audience) => audience.value === reader) ?? audiences[2];
   const isEnglishFirst = reader === "non_arabic_speaker";
-  const masteryRate = profile.checks
-    ? Math.round((profile.correctChecks / profile.checks) * 100)
-    : 0;
-  const shouldAdvance = profile.checks >= 3 && masteryRate >= 70;
-  const selectedLevel = adaptiveMode && shouldAdvance
-    ? Math.min(selectedAudience.level + 1, 4)
-    : selectedAudience.level;
+  const selectedLevel = selectedAudience.level;
 
   useEffect(() => {
     const restoreProgress = window.setTimeout(() => {
@@ -223,13 +214,8 @@ export default function Home() {
     });
   }
 
-  function rateCheck(correct: boolean) {
+  function rateCheck() {
     if (checkRated) return;
-    persistProfile({
-      ...profile,
-      checks: profile.checks + 1,
-      correctChecks: profile.correctChecks + (correct ? 1 : 0),
-    });
     setCheckRated(true);
   }
 
@@ -447,27 +433,6 @@ export default function Home() {
                 })}
               </div>
 
-              <label className="adaptive-row">
-                <input
-                  type="checkbox"
-                  checked={adaptiveMode}
-                  onChange={(event) => setAdaptiveMode(event.target.checked)}
-                  className="accent-teal"
-                />
-                <span>
-                  <strong>{t.adaptive.title}</strong>
-                  <small>
-                    {profile.checks === 0
-                      ? t.adaptive.intro
-                      : t.adaptive.progress(profile.readings, masteryRate)}
-                  </small>
-                  <span className="adaptive-progress" aria-label={t.adaptive.level(selectedLevel)}>
-                    <i style={{ width: `${(selectedLevel / 4) * 100}%` }} />
-                    <b>{t.adaptive.level(selectedLevel)}</b>
-                  </span>
-                </span>
-                {shouldAdvance && adaptiveMode && <em>{t.adaptive.advanced}</em>}
-              </label>
             </div>
 
             <div className="px-5 py-6 sm:px-8 sm:py-8">
@@ -753,10 +718,10 @@ export default function Home() {
                             </p>
                             {!checkRated ? (
                               <div className="mt-4 flex flex-wrap gap-2">
-                                <button type="button" onClick={() => rateCheck(true)} className="check-rate-button">{t.panels.understood}</button>
-                                <button type="button" onClick={() => rateCheck(false)} className="check-rate-button">{t.panels.review}</button>
+                                <button type="button" onClick={rateCheck} className="check-rate-button">{t.panels.understood}</button>
+                                <button type="button" onClick={rateCheck} className="check-rate-button">{t.panels.review}</button>
                               </div>
-                            ) : <p className="mt-3 text-xs font-bold text-teal">{t.panels.pathUpdated}</p>}
+                            ) : <p className="mt-3 text-xs font-bold text-teal">{t.panels.checkRecorded}</p>}
                           </div>
                         )}
                       </div>

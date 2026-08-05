@@ -35,7 +35,7 @@ FastAPI backend
 
 1. Reliable meaning-preserving results for Arabic text and PDF input.
 2. Arabic Word Lens and optional selective تشكيل inside the reading view.
-3. Device-local vocabulary and transparent adaptive learning.
+3. Device-local vocabulary and grounded comprehension support.
 4. Original, clear-Arabic, English, and Change Map views in a responsive PWA.
 
 Detailed summaries, grounded chat, full quizzes, accounts, OCR, and retrieval across large document libraries remain later features. The current learning and visual tools are progressive: they appear after the clear text and never compete with the primary reading experience.

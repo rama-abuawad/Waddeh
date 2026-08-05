@@ -1,129 +1,185 @@
 # وضّح | Waddeh
 
-**لأن الفهم يبدأ بالوضوح — Because understanding starts with clarity.**
+> لأن الفهم يبدأ بالوضوح — Because understanding starts with clarity.
 
-Waddeh is an Arabic-first reading companion that makes difficult Arabic clearer without removing its meaning. It supports Arabic learners, children, general readers, and people who do not speak Arabic through a bilingual, mobile-friendly experience.
+Waddeh is an Arabic-first reading companion designed to make complex Arabic content easier to understand without removing its meaning. It combines meaning-preserving clarification, translation, contextual vocabulary support, and adaptive learning in a bilingual, mobile-friendly experience.
 
-## Why Waddeh?
+## Product vision
 
-Most tools either translate Arabic or shorten it. Waddeh helps the reader understand the Arabic itself, then learn from it.
+Arabic readers often face a choice between difficult original text and translations or summaries that lose important details. Waddeh creates a clearer path through the original content while preserving names, dates, numbers, conditions, warnings, and technical facts.
 
-- Keeps important names, dates, numbers, conditions, and warnings.
-- Explains Arabic according to the selected reader.
-- Shows a complete English translation when needed.
-- Helps the reader progress instead of depending permanently on simplification.
+The experience serves three focused reader profiles:
 
-## Competition features
+- Children who benefit from short sentences and familiar vocabulary.
+- Non-Arabic speakers who need clear Arabic supported by English.
+- General readers who want direct Modern Standard Arabic.
 
-- **Arabic Word Lens:** select a word to see its contextual meaning, helpful تشكيل, root, synonym, and English meaning.
-- **PDF understanding:** upload an Arabic PDF up to 10 MB and understand it as one connected document.
-- **Optional تشكيل:** reveal diacritics only for difficult or ambiguous words.
-- **Saved vocabulary:** keep useful words in a private, device-local vocabulary list.
-- **Adaptive learning:** adjust the reading level using completed readings and comprehension checks.
-- **Change Map:** see selected original phrases, their clearer versions, and why they changed.
-- **Bilingual interface:** switch the complete website between Arabic RTL and English LTR.
-- **PWA and mobile support:** use Waddeh as a responsive website or installable app.
-- **Read aloud:** listen to the Arabic or English result in the browser.
+## Core capabilities
 
-## What is required?
+### Meaning-preserving clarification
 
-Only one external credential is required: **your Gemini API key**.
+Transforms complex Arabic into clearer Modern Standard Arabic while retaining critical information and the intent of the source.
 
-Waddeh also starts a local backend with the project. This is not another paid API or another account. It keeps the Gemini key out of the browser and securely handles the AI requests.
+### Arabic Word Lens
 
-## Quick start on Windows
+Provides the contextual meaning, helpful تشكيل, Arabic root, synonym, and English meaning of a selected word.
 
-### 1. First-time setup
+### PDF understanding
 
-Open CMD inside the cloned project folder and run:
+Processes Arabic PDF documents up to 10 MB as connected documents rather than isolated excerpts.
+
+### Optional تشكيل
+
+Adds selective diacritics to difficult or ambiguous words without filling the entire result with unnecessary marks.
+
+### Saved vocabulary
+
+Stores useful words in a device-local vocabulary collection that remains available across reading sessions.
+
+### Adaptive learning
+
+Adjusts the clarification level using completed readings and grounded comprehension checks.
+
+### Change Map
+
+Connects selected original phrases to their clearer versions and explains why each change improves readability.
+
+### Bilingual experience
+
+Supports a complete Arabic RTL and English LTR interface, accurate English results, bilingual learning tools, and browser-based read-aloud.
+
+### Progressive Web App
+
+Provides responsive phone, tablet, and desktop layouts with installable PWA metadata and an offline application shell.
+
+## Architecture
+
+```text
+Browser
+  Next.js · React · TypeScript · Tailwind CSS · PWA
+                         │
+                         │ HTTP
+                         ▼
+Application backend
+  FastAPI · Pydantic · HTTPX
+                         │
+                         ▼
+AI understanding layer
+  Structured text, PDF, translation, and learning output
+```
+
+The frontend owns presentation, accessibility, RTL/LTR behavior, speech, and device-local learning state. The backend owns validation, document handling, structured AI requests, and private configuration.
+
+## Technology stack
+
+| Area | Technologies |
+| --- | --- |
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| Backend | FastAPI, Python, Pydantic, HTTPX |
+| AI integration | Gemini Interactions API, structured JSON responses |
+| Browser features | Speech synthesis, local storage, service worker |
+| Quality | ESLint, TypeScript, Pytest |
+
+## Repository structure
+
+```text
+waddeh/
+├── frontend/           Web interface, PWA, and browser interactions
+├── backend/            Validation and server-side AI integration
+├── documentation/      Architecture and development notes
+├── sample-documents/   Safe demonstration documents
+├── context.md          Product scope, priorities, and roadmap
+├── .env.example        Local configuration template
+└── package.json        Monorepo commands
+```
+
+## Requirements
+
+- Node.js 20.9 or newer
+- Python 3.11 or newer
+- A configured local `.env` file based on `.env.example`
+
+## Installation
+
+### Windows
 
 ```bat
 npm.cmd install
 python -m venv backend\.venv
 backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-copy .env.example .env
-notepad .env
 ```
 
-In Notepad, set your Gemini key:
+### macOS and Linux
 
-```env
-GEMINI_API_KEY=your_private_key_here
-AI_MODEL=gemini-3.6-flash
+```bash
+npm install
+python3 -m venv backend/.venv
+backend/.venv/bin/python -m pip install -r backend/requirements.txt
 ```
 
-Save and close the file. Never commit the real `.env` file.
+## Development
 
-### 2. Start Waddeh
+Run the backend and frontend in separate terminal sessions from the repository root.
 
-Open two CMD windows in the project folder and keep both open.
-
-In the first window, start the secure backend:
+### Backend — Windows
 
 ```bat
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-In the second window, start the website:
+### Backend — macOS and Linux
 
-```bat
-npm.cmd run dev:frontend
+```bash
+backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-Wait until the frontend displays `Ready`, then open:
+### Frontend
 
-**http://localhost:3000**
-
-If an older PWA version appears, press `Ctrl + F5` once.
-
-## Suggested judge demo
-
-1. Switch between Arabic and English to show the complete bilingual interface.
-2. Choose a reader and use the prepared Arabic example.
-3. Generate the clear result and compare Clear Arabic, English, and Original Arabic.
-4. Select an Arabic word to open Word Lens and save it to the vocabulary list.
-5. Turn on helpful تشكيل.
-6. Open Change Map and the comprehension check.
-7. Upload a sample Arabic PDF and show document understanding.
-8. Resize the browser or open the site on a phone to demonstrate the responsive PWA.
-
-## Privacy during the demo
-
-- The Gemini key stays in the local `.env` file and is never sent to browser code.
-- Gemini interactions are configured as stateless with `store=false`.
-- Uploaded PDFs are sent for the active AI request and are not written to local server storage.
-- Saved vocabulary and adaptive progress stay in the browser on that device.
-
-Use non-sensitive sample documents during judging.
-
-## Project structure
-
-```text
-waddeh/
-├── frontend/           Next.js, TypeScript, Tailwind CSS, RTL/LTR, PWA
-├── backend/            FastAPI and server-side Gemini integration
-├── documentation/      Architecture and development notes
-├── sample-documents/   Safe documents for demonstrations
-├── context.md          Product scope and roadmap
-└── .env.example        Safe configuration template
+```bash
+npm run dev:frontend
 ```
 
-## Main technologies
-
-- Next.js, React, TypeScript, and Tailwind CSS
-- FastAPI, Python, Pydantic, and HTTPX
-- Gemini Interactions API with structured responses
-- Browser speech synthesis, local storage, and PWA service worker
+The application is available at `http://localhost:3000`.
 
 ## Validation
 
+### Frontend
+
+```bash
+npm run lint:frontend
+npm exec --workspace frontend -- tsc --noEmit
+```
+
+### Backend
+
+Windows:
+
 ```bat
-npm.cmd run lint:frontend
-npm.cmd exec --workspace frontend -- tsc --noEmit
 backend\.venv\Scripts\python.exe -m pytest backend\tests
 ```
 
-See [context.md](./context.md) for the complete product vision and [documentation/architecture.md](./documentation/architecture.md) for the architecture.
+macOS and Linux:
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests
+```
+
+## Privacy and data handling
+
+- Simplification interactions are configured as stateless.
+- Uploaded PDFs are processed for the active request and are not written to local server storage.
+- Vocabulary and adaptive progress remain in browser storage on the current device.
+- Sensitive or personal documents should not be used as public samples.
+
+## Documentation
+
+- [Product context and roadmap](./context.md)
+- [Architecture](./documentation/architecture.md)
+- [Development principles](./documentation/development.md)
+
+## Project status
+
+The current competition MVP includes the complete reading, translation, vocabulary, adaptive learning, PDF, PWA, and bilingual interface flow. Future work may extend OCR, grounded document chat, accounts, synchronized progress, and evaluation tooling.
 
 ## License
 

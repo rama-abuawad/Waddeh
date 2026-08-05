@@ -127,7 +127,7 @@ export const uiCopy = {
     },
     principles: {
       kicker: "الفكرة التي تقود وضّح",
-      title: "لا نستبدل العربية. نفتح بابها.",
+      title: "نفكّ تعقيد النص، لا معناه.",
       cards: [
         { title: "أوضح، لا أقل", body: "نرتّب الفكرة ونخفف تعقيد العبارة، مع إبقاء الأسماء والتواريخ والأرقام والشروط كما هي." },
         { title: "العربية ومعناها معاً", body: "يقرأ المستخدم النص بعربية واضحة، ويجد ترجمته الإنجليزية إلى جانبه عندما يحتاج إليها." },
@@ -263,7 +263,7 @@ export const uiCopy = {
     },
     principles: {
       kicker: "The idea behind Waddeh",
-      title: "We do not replace Arabic. We open its door.",
+      title: "We untangle the text, not its meaning.",
       cards: [
         { title: "Clearer, not less", body: "We simplify the expression while keeping names, dates, numbers, requirements, and conditions intact." },
         { title: "Arabic and its meaning together", body: "Read clear Arabic and open a complete English translation whenever you need it." },

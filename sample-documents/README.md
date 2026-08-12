@@ -1,5 +1,12 @@
-# Sample documents
+# Sample Documents
 
-Place non-sensitive Arabic samples here for repeatable development and quality testing.
+Place only non-sensitive Arabic samples here for repeatable development and quality testing.
 
-The planned test set should cover government, academic, scientific, news, legal-style, school-level, short, and long-form content. Do not add copyrighted or private documents without permission.
+Current text-based evaluation samples live in `evaluation/arabic_samples.json`. They are short, self-created passages.
+
+When adding PDF samples:
+
+- Use self-created, public-domain, or clearly licensed Arabic content.
+- Keep samples short and non-sensitive.
+- Include provenance or license notes.
+- Do not add private learner documents, government IDs, school records, medical records, or customer content.

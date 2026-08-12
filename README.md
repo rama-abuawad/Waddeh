@@ -1,111 +1,118 @@
 # وضّح | Waddeh
 
-> لأن الفهم يبدأ بالوضوح — Because understanding starts with clarity.
+Waddeh helps learners understand authentic Arabic at their current level and progressively guides them toward reading the original language independently.
 
-Waddeh is an Arabic-first reading companion designed to make complex Arabic content easier to understand without removing its meaning. It combines meaning-preserving clarification, translation, contextual vocabulary support, and comprehension tools in a bilingual, mobile-friendly experience.
+It is an Arabic-first adaptive reading companion built around one journey:
 
-## Product vision
+```text
+Authentic Arabic
+  -> Difficulty Assessment
+  -> Learner Level
+  -> Controlled Arabic Adaptation
+  -> Meaning Integrity Check
+  -> Contextual Vocabulary Learning
+  -> Bridge Mode
+  -> Original Arabic
+```
 
-Arabic readers often face a choice between difficult original text and translations or summaries that lose important details. Waddeh creates a clearer path through the original content while preserving names, dates, numbers, conditions, warnings, and technical facts.
+## Problem
 
-The experience serves three focused reader profiles:
+Arabic learners often encounter real Arabic that is above their current level. Translating, summarizing, or replacing it with beginner material may help them understand information, but it can also let them bypass the Arabic itself.
 
-- Children who benefit from short sentences and familiar vocabulary.
-- Non-Arabic speakers who need clear Arabic supported by English.
-- General readers who want direct Modern Standard Arabic.
+Waddeh is designed to bridge the gap between the Arabic a learner understands today and the authentic Arabic they want to understand tomorrow.
 
-## Core capabilities
+## What Waddeh Is
 
-### Meaning-preserving clarification
+Implemented in the current competition branch:
 
-Transforms complex Arabic into clearer Modern Standard Arabic while retaining critical information and the intent of the source.
+- Arabic readability assessment with deterministic signals and honest heuristic labels.
+- Explicit learner-level selection: Beginner, Easy, Standard, Advanced, Original.
+- Controlled Arabic adaptation through the FastAPI/Gemini backend.
+- Independent meaning-integrity layer with deterministic fact checks and separate semantic verification when Gemini is configured.
+- Bridge Mode for progressively richer Arabic versions that lead back toward the original.
+- Contextual Word Lens with diacritics, meaning, root when confident, synonym, English support, and save-to-vocabulary.
+- English translation as support, not the destination.
+- PDF upload path for the same adaptive reading journey.
+- Device-local learner progress and saved vocabulary.
+- PWA shell, RTL/LTR interface, frontend validation, backend tests, CI, and deterministic evaluation starter set.
 
-### Arabic Word Lens
+Waddeh is not a generic chatbot, generic translator, generic PDF chatbot, unrelated AI feature bundle, or Duolingo clone.
 
-Provides the contextual meaning, helpful تشكيل, Arabic root, synonym, and English meaning of a selected word.
+## Current Limitations
 
-### PDF understanding
-
-Processes Arabic PDF documents up to 10 MB as connected documents rather than isolated excerpts.
-
-### Optional تشكيل
-
-Adds selective diacritics to difficult or ambiguous words without filling the entire result with unnecessary marks.
-
-### Saved vocabulary
-
-Stores useful words in a device-local vocabulary collection that remains available across reading sessions.
-
-### Change Map
-
-Connects selected original phrases to their clearer versions and explains why each change improves readability.
-
-### Bilingual experience
-
-Supports a complete Arabic RTL and English LTR interface, accurate English results, bilingual learning tools, and browser-based read-aloud.
-
-### Progressive Web App
-
-Provides responsive phone, tablet, and desktop layouts with installable PWA metadata and an offline application shell.
+- Readability levels are heuristic, not academically validated scores.
+- Live adaptation quality, Bridge Mode ordering, and semantic integrity require a configured Gemini key and human review.
+- PDF source text is not persisted in this MVP, so deterministic source-vs-adapted integrity is limited for PDFs.
+- Learner profile is local to the browser/device.
+- No accounts, OCR, large document library, or open-ended chat are included.
 
 ## Architecture
 
 ```text
 Browser
   Next.js · React · TypeScript · Tailwind CSS · PWA
-                         │
-                         │ HTTP
-                         ▼
-Application backend
-  FastAPI · Pydantic · HTTPX
-                         │
-                         ▼
-AI understanding layer
-  Structured text, PDF, translation, and learning output
+        |
+        | HTTP
+        v
+FastAPI backend
+  Pydantic schemas
+  readability service
+  integrity service
+  Gemini service
+        |
+        v
+Gemini Interactions API
 ```
 
-The frontend owns presentation, accessibility, RTL/LTR behavior, speech, and device-local learning state. The backend owns validation, document handling, structured AI requests, and private configuration.
+The frontend owns the learning journey, RTL/LTR behavior, local vocabulary, learner progress, and presentation.
 
-## Technology stack
+The backend owns validation, PDF handling, deterministic analysis, Gemini credentials, structured AI requests, and independent integrity checks.
 
-| Area | Technologies |
-| --- | --- |
-| Frontend | Next.js, React, TypeScript, Tailwind CSS |
-| Backend | FastAPI, Python, Pydantic, HTTPX |
-| AI integration | Gemini Interactions API, structured JSON responses |
-| Browser features | Speech synthesis, local storage, service worker |
-| Quality | ESLint, TypeScript, Pytest |
-
-## Repository structure
+## Repository Structure
 
 ```text
 waddeh/
-├── frontend/           Web interface, PWA, and browser interactions
-├── backend/            Validation and server-side AI integration
-├── documentation/      Architecture and development notes
-├── sample-documents/   Safe demonstration documents
-├── context.md          Product scope, priorities, and roadmap
-├── .env.example        Local configuration template
-└── package.json        Monorepo commands
+├── frontend/           Next.js adaptive reading interface
+├── backend/            FastAPI API, schemas, services, tests
+├── documentation/      V2 architecture, API, evaluation, privacy notes
+├── evaluation/         Self-created Arabic samples and deterministic runner
+├── sample-documents/   Demo document notes
+├── context.md          V2 product brief
+├── AGENTS.md           Shared engineering guidance
+├── .env.example        Local environment template
+└── package.json        Monorepo frontend commands
 ```
 
 ## Requirements
 
-- Node.js 20.9 or newer
-- Python 3.11 or newer
-- A configured local `.env` file based on `.env.example`
+- Node.js 20.9 or newer. Local development was verified with Node.js 24.14.0 and npm 11.12.1.
+- Python 3.11 or newer. On this machine, use the bundled Codex Python if system Python is not on PATH.
+- A local `.env` file based on `.env.example`.
+
+## Environment
+
+Create `.env` from `.env.example`:
+
+```text
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+FRONTEND_ORIGIN=http://localhost:3000
+AI_MODEL=gemini-3.6-flash
+GEMINI_API_KEY=
+```
+
+Only populate `GEMINI_API_KEY` locally. Never commit `.env`.
 
 ## Installation
 
-### Windows
+Windows from the repository root:
 
-```bat
+```powershell
 npm.cmd install
-python -m venv backend\.venv
+& 'C:\Users\mukes\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m venv backend\.venv
 backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 ```
 
-### macOS and Linux
+macOS/Linux:
 
 ```bash
 npm install
@@ -115,68 +122,61 @@ backend/.venv/bin/python -m pip install -r backend/requirements.txt
 
 ## Development
 
-Run the backend and frontend in separate terminal sessions from the repository root.
+Run backend and frontend in separate terminals from the repository root.
 
-### Backend — Windows
+Backend:
 
-```bat
+```powershell
 backend\.venv\Scripts\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
 ```
 
-### Backend — macOS and Linux
+Frontend:
 
-```bash
-backend/.venv/bin/python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000
-```
-
-### Frontend
-
-```bash
+```powershell
 npm run dev:frontend
 ```
 
-The application is available at `http://localhost:3000`.
+Open `http://localhost:3000`.
 
 ## Validation
 
-### Frontend
-
-```bash
+```powershell
 npm run lint:frontend
 npm exec --workspace frontend -- tsc --noEmit
-```
-
-### Backend
-
-Windows:
-
-```bat
+npm run build:frontend
 backend\.venv\Scripts\python.exe -m pytest backend\tests
+backend\.venv\Scripts\python.exe evaluation\check_deterministic.py
+git ls-files .env
 ```
 
-macOS and Linux:
+`git ls-files .env` should print nothing.
 
-```bash
-backend/.venv/bin/python -m pytest backend/tests
-```
+## API Summary
 
-## Privacy and data handling
+- `GET /api/health`
+- `POST /api/readability`
+- `POST /api/simplify`
+- `POST /api/upload/pdf`
+- `POST /api/explain-word`
 
-- Simplification interactions are configured as stateless.
-- Uploaded PDFs are processed for the active request and are not written to local server storage.
-- Vocabulary and reading history remain in browser storage on the current device.
-- Sensitive or personal documents should not be used as public samples.
+See `documentation/api-contract.md` for response details.
 
-## Documentation
+## Privacy Notes
 
-- [Product context and roadmap](./context.md)
-- [Architecture](./documentation/architecture.md)
-- [Development principles](./documentation/development.md)
+- Gemini key remains server-side.
+- `.env` is ignored and must not be committed.
+- Uploaded PDFs are validated and not written to local server storage.
+- Text/PDF content is sent to the configured model provider for active processing.
+- Saved vocabulary and learner progress are stored in browser `localStorage`.
 
-## Project status
+See `documentation/privacy-security.md`.
 
-The current competition MVP includes the complete reading, translation, vocabulary, comprehension, PDF, PWA, and bilingual interface flow. Future work may extend OCR, grounded document chat, accounts, synchronized progress, and evaluation tooling.
+## Roadmap
 
-## License
+Planned after the competition MVP:
 
-No open-source license has been selected. All rights are reserved.
+- Live QA after a Gemini key is configured.
+- Better sentence-level Bridge Mode alignment.
+- More learner progress signals without overclaiming personalization depth.
+- Expanded evaluation with reviewed AI outputs and real learner testing.
+- Deployment hardening: rate limiting, production CORS, abuse monitoring, and privacy policy.

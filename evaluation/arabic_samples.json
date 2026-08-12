@@ -1,0 +1,42 @@
+[
+  {
+    "id": "beginner_daily_notice",
+    "category": "beginner-friendly Arabic",
+    "source": "self-created",
+    "text": "تفتح المكتبة أبوابها في الساعة التاسعة صباحاً. يستطيع الطلاب استعارة كتابين لمدة أسبوع واحد.",
+    "expected_facts": ["الساعة التاسعة صباحاً", "كتابين", "أسبوع واحد"],
+    "expected_min_sentences": 2
+  },
+  {
+    "id": "school_science",
+    "category": "educational Arabic",
+    "source": "self-created",
+    "text": "عندما تقل كمية الماء في التربة، تبدأ النبتة بإغلاق بعض المسامات الصغيرة في أوراقها لتقليل فقدان الماء.",
+    "expected_facts": ["الماء", "التربة", "المسامات"],
+    "expected_min_sentences": 1
+  },
+  {
+    "id": "academic_intro",
+    "category": "academic Arabic",
+    "source": "self-created",
+    "text": "تشير نتائج الدراسة إلى أن زيادة وقت القراءة اليومية بمقدار 20 دقيقة قد تحسن قدرة الطلاب على فهم النصوص الطويلة خلال فصل دراسي واحد.",
+    "expected_facts": ["20 دقيقة", "فصل دراسي واحد"],
+    "expected_min_sentences": 1
+  },
+  {
+    "id": "administrative_deadline",
+    "category": "formal/administrative Arabic",
+    "source": "self-created",
+    "text": "يتعين على المتقدم استيفاء جميع المتطلبات المنصوص عليها قبل انقضاء المهلة المحددة، ولن تقبل الطلبات التي ترسل بعد تاريخ 30 أغسطس 2026.",
+    "expected_facts": ["30 أغسطس 2026"],
+    "expected_min_sentences": 1
+  },
+  {
+    "id": "heritage_exhibit",
+    "category": "cultural/heritage Arabic",
+    "source": "self-created",
+    "text": "يعرض المتحف ثلاث مخطوطات قديمة تشرح أساليب الملاحة البحرية في الخليج، وتبين كيف استخدم البحارة النجوم لتحديد الاتجاه ليلاً.",
+    "expected_facts": ["ثلاث مخطوطات", "الخليج", "النجوم"],
+    "expected_min_sentences": 1
+  }
+]

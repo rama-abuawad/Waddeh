@@ -12,4 +12,21 @@
 
 ## Branches
 
-Use `main` for stable work and a `develop` branch for integration once the remote repository and team workflow are established. Feature branches should be short-lived and reviewed before merge.
+Use `main` for stable reviewed work.
+
+Use `competition/waddeh-v2` for the current competition transformation. Do not commit competition development directly to `main`, and do not force-push shared branches.
+
+Feature branches may branch from `competition/waddeh-v2` when parallel work needs isolation. Integrate only reviewed changes that preserve the central backend/frontend API contract.
+
+## Validation
+
+Run from the repository root before handoff:
+
+```powershell
+npm run lint:frontend
+npm exec --workspace frontend -- tsc --noEmit
+npm run build:frontend
+backend\.venv\Scripts\python.exe -m pytest backend\tests
+backend\.venv\Scripts\python.exe evaluation\check_deterministic.py
+git ls-files .env
+```

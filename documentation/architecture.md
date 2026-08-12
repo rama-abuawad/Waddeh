@@ -1,41 +1,80 @@
-# Initial architecture
+# Waddeh V2 Architecture
 
-Waddeh starts as a responsive Arabic-first web application with a deliberately small foundation.
+Waddeh V2 is an adaptive Arabic learning companion. Its core journey is:
 
 ```text
-Browser (Next.js, RTL)
-        |
-        | HTTP /api/*
-        v
-FastAPI backend
-        |
-        +-- Gemini Interactions API (server-side only)
-        |     +-- structured text understanding
-        |     +-- direct PDF understanding
-        |     +-- contextual Word Lens
-        +-- PostgreSQL / pgvector (future)
-        +-- document storage (future)
+Authentic Arabic
+  -> readability assessment
+  -> learner level selection
+  -> controlled Arabic adaptation
+  -> independent meaning-integrity checks
+  -> contextual vocabulary
+  -> Bridge Mode
+  -> original Arabic
 ```
 
-## Boundaries
+## System Boundary
 
-- The frontend owns presentation, accessibility, responsive RTL layouts, and user interactions.
-- The interface language is a device-local preference. Arabic renders RTL and English renders LTR without changing the source language of the reading task.
-- The backend owns validation, AI requests, document processing, secrets, and later persistence.
-- AI credentials must never be shipped to the browser.
-- `GET /api/health` reports service availability.
-- `POST /api/simplify` validates Arabic input and returns structured Gemini output.
-- `POST /api/upload/pdf` validates a PDF up to 10 MB, sends it to Gemini for the request, and does not write it to server storage.
-- `POST /api/explain-word` returns a short explanation grounded in the current clear-text context.
-- Simplification requests use stateless Gemini interactions (`store=false`).
-- One structured response also supplies selective تشكيل, an English translation, bilingual learning support, a bilingual Change Map, a grounded bilingual comprehension check, optional process steps, and preserved critical details.
-- Saved vocabulary and the learning profile use browser `localStorage` in this competition version. They are device-local and require no account.
+```text
+Browser
+  Next.js, React, TypeScript, Tailwind CSS, PWA shell
+        |
+        | HTTP
+        v
+FastAPI backend
+  Pydantic schemas
+  deterministic readability service
+  deterministic integrity service
+  Gemini generation and semantic verification
+        |
+        v
+Gemini Interactions API
+```
 
-## Near-term priorities
+The frontend owns the learning journey, RTL/LTR presentation, local learner profile, saved vocabulary, speech synthesis, and PDF/text input ergonomics.
 
-1. Reliable meaning-preserving results for Arabic text and PDF input.
-2. Arabic Word Lens and optional selective تشكيل inside the reading view.
-3. Device-local vocabulary and grounded comprehension support.
-4. Original, clear-Arabic, English, and Change Map views in a responsive PWA.
+The backend owns validation, structured AI prompts, Gemini credentials, deterministic analysis, PDF validation, independent meaning-integrity checks, and response schemas.
 
-Detailed summaries, grounded chat, full quizzes, accounts, OCR, and retrieval across large document libraries remain later features. The current learning and visual tools are progressive: they appear after the clear text and never compete with the primary reading experience.
+## Backend Pipeline
+
+For text requests, `POST /api/simplify` performs:
+
+1. Arabic input validation.
+2. Deterministic readability assessment.
+3. Structured Gemini adaptation at the requested learner level.
+4. Deterministic integrity comparison between source and adapted text.
+5. Separate semantic integrity verification with Gemini when configured.
+6. A single structured response containing adaptation, translation support, Word Lens inputs, Change Map, Bridge Mode, comprehension check, readability, and meaning integrity.
+
+For PDF requests, `POST /api/upload/pdf` validates file type and size, forwards the active bytes to Gemini, and does not write uploaded content to local storage. Because the original extracted PDF text is not persisted in this MVP, deterministic source-vs-adapted integrity is limited for PDF responses.
+
+## Readability
+
+The first implementation separates deterministic signals from AI-estimated signals. Current deterministic signals include sentence count, word count, average sentence length, long sentence examples, vocabulary indicators, numbers, dates, and difficulty reasons.
+
+The displayed difficulty estimate is a heuristic, not a validated academic readability score.
+
+## Meaning Integrity
+
+Meaning integrity has two layers:
+
+- Deterministic checks for numbers, dates, times, currencies, percentages, and visible list counts.
+- Semantic verification for conditions, warnings, obligations, omissions, and possible meaning changes when Gemini is configured.
+
+The UI avoids absolute claims such as perfect verification.
+
+## Bridge Mode
+
+Bridge Mode is the main learning differentiator. It presents progressively richer Arabic versions so learners can move from their adapted level toward the original wording while seeing meaningful vocabulary or structure reintroductions.
+
+## Local Persistence
+
+The competition MVP uses browser `localStorage` for:
+
+- UI language.
+- Saved vocabulary.
+- Reading count.
+- Preferred learner level.
+- Highest bridge level reached.
+
+There are no accounts or cross-device sync in this version.

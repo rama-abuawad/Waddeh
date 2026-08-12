@@ -7,6 +7,8 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.schemas import (
+    ReadabilityAssessment,
+    ReadabilityRequest,
     ReaderType,
     SimplificationLevel,
     SimplificationOutput,
@@ -21,6 +23,8 @@ from app.services.gemini import (
     GeminiServiceError,
     get_gemini_service,
 )
+from app.services.integrity import build_deterministic_integrity_report, combine_integrity_reports
+from app.services.readability import assess_readability
 
 settings = get_settings()
 
@@ -44,11 +48,17 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "waddeh-api"}
 
 
+@app.post("/api/readability", response_model=ReadabilityAssessment, tags=["reading"])
+async def readability(request: ReadabilityRequest) -> ReadabilityAssessment:
+    return assess_readability(request.text)
+
+
 @app.post("/api/simplify", response_model=SimplifyResponse, tags=["reading"])
 async def simplify(
     request: SimplifyRequest,
     service: GeminiService = Depends(get_gemini_service),
 ) -> SimplifyResponse:
+    readability_result = assess_readability(request.text)
     try:
         result: SimplificationOutput = await run_in_threadpool(service.simplify, request)
     except GeminiConfigurationError as exc:
@@ -62,10 +72,32 @@ async def simplify(
             detail=str(exc),
         ) from exc
 
+    deterministic_integrity = build_deterministic_integrity_report(
+        source_text=request.text,
+        adapted_text=result.simplified_text,
+    )
+    semantic_integrity = None
+    try:
+        semantic_integrity = await run_in_threadpool(
+            service.verify_integrity,
+            request.text,
+            result.simplified_text,
+        )
+    except GeminiServiceError:
+        deterministic_integrity.warnings.append(
+            "تعذر تشغيل التحقق الدلالي المستقل؛ تظهر نتيجة الفحص الحتمي فقط."
+        )
+    meaning_integrity = combine_integrity_reports(
+        deterministic=deterministic_integrity,
+        semantic=semantic_integrity,
+    )
+
     return SimplifyResponse(
         original_text=request.text,
         reader=request.reader,
         level=request.level,
+        readability=readability_result,
+        meaning_integrity=meaning_integrity,
         **result.model_dump(),
     )
 
@@ -115,11 +147,19 @@ async def simplify_pdf(
             detail=str(exc),
         ) from exc
 
+    readability_result = assess_readability(result.simplified_text)
+    deterministic_integrity = build_deterministic_integrity_report(
+        source_text="",
+        adapted_text=result.simplified_text,
+    )
+
     return SimplifyResponse(
         original_text="",
         source_name=safe_name,
         reader=reader,
         level=level,
+        readability=readability_result,
+        meaning_integrity=deterministic_integrity,
         **result.model_dump(),
     )
 

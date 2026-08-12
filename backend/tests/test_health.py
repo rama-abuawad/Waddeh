@@ -2,10 +2,16 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.schemas import (
+    BridgeLevel,
+    BridgeMode,
+    BridgeTransition,
     ChangeItem,
+    ConfidenceLevel,
     ComprehensionCheck,
     LearningCard,
+    SemanticIntegrityAssessment,
     SimplificationOutput,
+    SimplificationLevel,
     WordExplanation,
 )
 from app.services.gemini import GeminiService, get_gemini_service
@@ -45,6 +51,41 @@ class FakeGeminiService:
                     reason_english="A shorter, more familiar expression.",
                 )
             ],
+            bridge=BridgeMode(
+                current_level=SimplificationLevel.easy,
+                guidance="انتقل من النص السهل إلى الأصل عبر إعادة مفردة واحدة في كل خطوة.",
+                guidance_english="Move from clear Arabic to the original by reintroducing one item at a time.",
+                levels=[
+                    BridgeLevel(
+                        level=SimplificationLevel.easy,
+                        label_ar="سهل",
+                        label_en="Easy",
+                        text="يجب على الشخص إكمال الشروط قبل انتهاء الموعد.",
+                        reintroduced_items=[],
+                    ),
+                    BridgeLevel(
+                        level=SimplificationLevel.standard,
+                        label_ar="قياسي",
+                        label_en="Standard",
+                        text="يجب على المتقدم استيفاء الشروط قبل انتهاء الموعد.",
+                        reintroduced_items=[
+                            BridgeTransition(
+                                simpler_phrase="الشخص",
+                                richer_phrase="المتقدم",
+                                explanation="أعيدت كلمة المتقدم لأنها أدق في سياق الطلبات.",
+                                explanation_english="Applicant is more precise for application contexts.",
+                            )
+                        ],
+                    ),
+                    BridgeLevel(
+                        level=SimplificationLevel.original,
+                        label_ar="أصلي",
+                        label_en="Original",
+                        text="يتعين على المتقدم استيفاء جميع الشروط قبل انقضاء الموعد المحدد.",
+                        reintroduced_items=[],
+                    ),
+                ],
+            ),
             comprehension_check=ComprehensionCheck(
                 question="متى يجب إكمال الشروط؟",
                 answer="قبل انتهاء الوقت المحدد.",
@@ -55,6 +96,16 @@ class FakeGeminiService:
 
     def simplify_pdf(self, *_args: object) -> SimplificationOutput:
         return self.simplify(object())
+
+    def verify_integrity(self, *_args: object) -> SemanticIntegrityAssessment:
+        return SemanticIntegrityAssessment(
+            status="no_issue_detected",
+            confidence=ConfidenceLevel.medium,
+            preserved_items=["الموعد المحدد محفوظ"],
+            changed_items=[],
+            missing_items=[],
+            warnings=[],
+        )
 
     def explain_word(self, _request: object) -> WordExplanation:
         return WordExplanation(
@@ -83,6 +134,9 @@ def test_simplify() -> None:
 
     assert response.status_code == 200
     assert response.json()["level"] == 2
+    assert response.json()["readability"]["heuristic_estimate"]["status"] == "heuristic"
+    assert response.json()["meaning_integrity"]["status"] == "no_issue_detected"
+    assert response.json()["bridge"]["levels"][-1]["level"] == 5
     assert "إكمال الشروط" in response.json()["simplified_text"]
     assert "applicant" in response.json()["english_translation"]
     assert response.json()["learning_cards"][0]["term"] == "المتقدم"

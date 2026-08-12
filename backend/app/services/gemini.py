@@ -9,12 +9,14 @@ from pydantic import BaseModel
 from app.config import get_settings
 from app.schemas import (
     ReaderType,
+    SemanticIntegrityAssessment,
     SimplificationLevel,
     SimplificationOutput,
     SimplifyRequest,
     WordExplanation,
     WordExplanationRequest,
 )
+from app.services.adaptation import build_adaptation_strategy
 
 logger = logging.getLogger(__name__)
 OutputModel = TypeVar("OutputModel", bound=BaseModel)
@@ -60,7 +62,9 @@ class GeminiService:
 {request.text}
 ---""",
         )
-        return self._generate(input_data=prompt, output_model=SimplificationOutput)
+        result = self._generate(input_data=prompt, output_model=SimplificationOutput)
+        result.adaptation_strategy = build_adaptation_strategy(request.level)
+        return result
 
     def simplify_pdf(
         self,
@@ -84,7 +88,40 @@ class GeminiService:
             },
             {"type": "text", "text": prompt},
         ]
-        return self._generate(input_data=input_data, output_model=SimplificationOutput)
+        result = self._generate(input_data=input_data, output_model=SimplificationOutput)
+        result.adaptation_strategy = build_adaptation_strategy(level)
+        return result
+
+    def verify_integrity(
+        self,
+        source_text: str,
+        adapted_text: str,
+    ) -> SemanticIntegrityAssessment:
+        prompt = f"""
+أنت مرحلة تحقق مستقلة في منصة «وضّح». قارن النص الأصلي بالنص المتكيف.
+
+النص الأصلي:
+---
+{source_text}
+---
+
+النص المتكيف:
+---
+{adapted_text}
+---
+
+المطلوب:
+- لا تعيد تبسيط النص.
+- ابحث فقط عن حفظ المعنى أو تغييره أو حذف معلومات مهمة.
+- ركز على المتطلبات والشروط والتحذيرات والاستثناءات والالتزامات والحقائق المهمة.
+- اذكر العناصر المحفوظة بوضوح في preserved_items.
+- اذكر أي تغيير محتمل في changed_items.
+- اذكر أي حذف محتمل في missing_items.
+- ضع تحذيرات صادقة عند عدم القدرة على الجزم.
+- استخدم status = no_issue_detected إذا لم تظهر مشكلة، أو needs_attention إذا ظهرت مشكلة محتملة.
+- استخدم confidence = low أو medium أو high ولا تدّع اليقين المطلق.
+""".strip()
+        return self._generate(input_data=prompt, output_model=SemanticIntegrityAssessment)
 
     def explain_word(self, request: WordExplanationRequest) -> WordExplanation:
         reader_description = READER_DESCRIPTIONS[request.reader.value]
@@ -103,6 +140,8 @@ class GeminiService:
 - أضف التشكيل المفيد إلى الكلمة في diacritized_word.
 - أعط الجذر العربي عندما تكون واثقاً؛ اكتب «غير معروف» إذا لم تكن واثقاً.
 - أعط مرادفاً عربياً واحداً مناسباً للسياق وترجمة إنجليزية موجزة.
+- أضف example قصيراً بالعربية عندما يساعد السياق.
+- استخدم confidence = low إذا كان الجذر أو المعنى غير مؤكد، وإلا medium أو high.
 - اجعل الإجابة قصيرة وواضحة ولا تضف معلومات غير مدعومة بالسياق.
 """.strip()
         return self._generate(input_data=prompt, output_model=WordExplanation)
@@ -182,6 +221,7 @@ class GeminiService:
     ) -> str:
         reader_description = READER_DESCRIPTIONS[reader.value]
         level_description = LEVEL_DESCRIPTIONS[int(level)]
+        strategy = build_adaptation_strategy(level)
 
         return f"""
 أنت المساعد اللغوي لمنصة «وضّح»، وهي منصة عربية تساعد القارئ على فهم العربية والتقدم فيها.
@@ -193,6 +233,13 @@ class GeminiService:
 
 مستوى التوضيح:
 {level_description}
+
+استراتيجية التحكم في العربية:
+- مستوى الهدف: {strategy.target_level_label}
+- المفردات: {strategy.vocabulary_control}
+- طول الجمل وبنيتها: {strategy.sentence_control}
+- مقدار الشرح: {strategy.explanation_control}
+- المصطلحات: {strategy.terminology_policy}
 
 قواعد إلزامية:
 - حافظ بدقة على جميع الأسماء والتواريخ والأرقام والمبالغ والمواعيد النهائية.
@@ -210,6 +257,10 @@ class GeminiService:
 - إذا كان المحتوى يصف عملية أو تسلسلاً، ضع مراحله في visual_steps؛ وإلا أعد قائمة فارغة.
 - ترجم visual_steps بدقة وبالترتيب نفسه إلى visual_steps_english، أو أعد قائمة فارغة إذا كانت visual_steps فارغة.
 - في change_map، اربط ما يصل إلى خمس عبارات أصلية بما يقابلها في النص الواضح، واشرح سبب التغيير بالعربية في reason وبالإنجليزية في reason_english.
+- أنشئ bridge يوجه القارئ من المستوى الحالي نحو النص الأصلي عبر 3 إلى 5 مستويات مرتبة.
+- يجب أن يحتوي bridge.levels على المستوى الحالي، ومستوى أو مستويين أغنى، ثم المستوى الأصلي إن أمكن.
+- لا تجعل مستويات bridge نسخاً متطابقة إلا إذا كان مستوى الهدف أصلياً.
+- في كل انتقال، اشرح كلمة أو تركيباً أُعيد إدخاله ولماذا يساعد القارئ على الاقتراب من الأصل.
 - أنشئ سؤال فهم واحداً وإجابة موجزة بالاعتماد على المصدر فقط، ثم أضف نسختهما الإنجليزية في question_english وanswer_english.
 
 {source_instruction}

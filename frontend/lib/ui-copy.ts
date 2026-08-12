@@ -1,3 +1,29 @@
+function arabicSavedWords(count: number): string {
+  if (count === 0) return "لا كلمات محفوظة";
+  if (count === 1) return "كلمة واحدة محفوظة";
+  if (count === 2) return "كلمتان محفوظتان";
+  return `${count} ${count <= 10 ? "كلمات" : "كلمة"} محفوظة`;
+}
+
+function arabicLearningSummary(readings: number, words: number): string {
+  const readingSummary = readings === 0
+    ? "لم تنجز قراءة بعد"
+    : readings === 1
+      ? "أنجزت قراءة واحدة"
+      : readings === 2
+        ? "أنجزت قراءتين"
+        : `أنجزت ${readings} ${readings <= 10 ? "قراءات" : "قراءة"}`;
+  const wordSummary = words === 0
+    ? "لم تحفظ أي مفردة"
+    : words === 1
+      ? "حفظت مفردة واحدة"
+      : words === 2
+        ? "حفظت مفردتين"
+        : `حفظت ${words} ${words <= 10 ? "مفردات" : "مفردة"}`;
+
+  return `${readingSummary}، و${wordSummary}.`;
+}
+
 export const uiCopy = {
   ar: {
     homeLabel: "وضّح - الصفحة الرئيسية",
@@ -76,7 +102,7 @@ export const uiCopy = {
       stopSpeech: "إيقاف القراءة",
       speechDescription: "قراءة عربية أو إنجليزية",
       learning: "التعلّم والمفردات",
-      savedCount: (count: number) => `${count} كلمات محفوظة`,
+      savedCount: arabicSavedWords,
       changes: "خريطة الفروق",
       changesDescription: "ماذا تغيّر، ولماذا؟",
       check: "تحقق من فهمك",
@@ -88,7 +114,7 @@ export const uiCopy = {
     },
     panels: {
       learningTitle: "تعلّم من النص نفسه",
-      learningSummary: (readings: number, words: number) => `أنجزت ${readings} قراءات، وحفظت ${words} مفردات.`,
+      learningSummary: arabicLearningSummary,
       saveWord: "+ احفظ الكلمة",
       vocabulary: "مفرداتي",
       vocabularyDescription: "الكلمات التي حفظتها من قراءاتك.",
@@ -205,7 +231,7 @@ export const uiCopy = {
       stopSpeech: "Stop reading",
       speechDescription: "Arabic or English read-aloud",
       learning: "Learning and vocabulary",
-      savedCount: (count: number) => `${count} saved words`,
+      savedCount: (count: number) => `${count} saved ${count === 1 ? "word" : "words"}`,
       changes: "Difference Map",
       changesDescription: "What changed, and why?",
       check: "Check your understanding",
@@ -217,7 +243,7 @@ export const uiCopy = {
     },
     panels: {
       learningTitle: "Learn from the text itself",
-      learningSummary: (readings: number, words: number) => `${readings} readings completed and ${words} words saved.`,
+      learningSummary: (readings: number, words: number) => `${readings} ${readings === 1 ? "reading" : "readings"} completed and ${words} ${words === 1 ? "word" : "words"} saved.`,
       saveWord: "+ Save word",
       vocabulary: "My vocabulary",
       vocabularyDescription: "Words you have saved from your readings.",

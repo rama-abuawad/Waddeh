@@ -24,6 +24,14 @@ This check does not call Gemini. It verifies that the representative samples pas
 
 Live adaptation, semantic integrity verification, Word Lens, PDF understanding, and Bridge Mode quality require a configured `GEMINI_API_KEY` in `.env`.
 
+Run the live integration smoke test from the repository root:
+
+```powershell
+backend\.venv\Scripts\python.exe evaluation\live_gemini_smoke.py
+```
+
+The script checks the real backend pipeline for text and PDF inputs, including structured response validity, readability, fact preservation, Meaning Integrity status, at least three Bridge levels, contextual Word Lens fields, and visible encoding artifacts. It prints only a safe pass/fail summary.
+
 Do not record or publish AI quality claims from this directory unless they come from actual runs and reviewed outputs.
 
 ## Future Human Testing

@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:3000"
     gemini_api_key: str = ""
     ai_model: str = "gemini-3.6-flash"
+    ai_fallback_model: str = "gemini-3.5-flash"
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),

@@ -33,7 +33,7 @@ Gemini Interactions API
 
 The frontend owns the learning journey, RTL/LTR presentation, local learner profile, saved vocabulary, speech synthesis, and PDF/text input ergonomics.
 
-The backend owns validation, structured AI prompts, Gemini credentials, deterministic analysis, PDF validation, independent meaning-integrity checks, and response schemas.
+The backend owns validation, structured AI prompts, Gemini credentials, deterministic analysis, PDF validation, independent meaning-integrity checks, and response schemas. A separately configured fallback model is attempted only when the primary Gemini model returns HTTP 429; authentication and request-validation failures are not retried against it.
 
 ## Backend Pipeline
 

@@ -28,5 +28,8 @@ npm exec --workspace frontend -- tsc --noEmit
 npm run build:frontend
 backend\.venv\Scripts\python.exe -m pytest backend\tests
 backend\.venv\Scripts\python.exe evaluation\check_deterministic.py
+backend\.venv\Scripts\python.exe evaluation\live_gemini_smoke.py
 git ls-files .env
 ```
+
+`evaluation\live_gemini_smoke.py` requires a locally configured Gemini key. It never prints the key.

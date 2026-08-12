@@ -1,7 +1,8 @@
 import base64
+import copy
 import logging
 from functools import lru_cache
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import httpx
 from pydantic import BaseModel
@@ -49,9 +50,10 @@ LEVEL_DESCRIPTIONS = {
 
 
 class GeminiService:
-    def __init__(self, api_key: str, model: str) -> None:
+    def __init__(self, api_key: str, model: str, fallback_model: str = "") -> None:
         self.api_key = api_key
         self.model = model
+        self.fallback_model = fallback_model.strip()
 
     def simplify(self, request: SimplifyRequest) -> SimplificationOutput:
         prompt = self._build_simplification_prompt(
@@ -77,7 +79,11 @@ class GeminiService:
             level=level,
             source_instruction=(
                 "اقرأ المستند العربي المرفق كاملاً بالترتيب. تجاهل رؤوس الصفحات وأرقام "
-                "الصفحات المتكررة، ثم وضّح محتواه كوحدة مترابطة. لا تخترع نصاً غير ظاهر في المستند."
+                "الصفحات المتكررة، ثم وضّح محتواه كوحدة مترابطة. لا تخترع نصاً غير ظاهر في المستند. "
+                "إذا ظهرت لك علامات ترميز تالفة مثل þÿ أو أحرف مفككة لا تكوّن نصاً عربياً مقروءاً، "
+                "فلا تعرض النص التالف في أي حقل موجه للمستخدم. استخلص العربية المقصودة قدر الإمكان، "
+                "واجعل جميع مستويات bridge عربية مقروءة. إذا تعذر الجزم بالصياغة الأصلية، فاجعل آخر "
+                "مستوى نسخة عربية قياسية محافظة بدلاً من عرض نص مشوه."
             ),
         )
         input_data = [
@@ -160,23 +166,28 @@ class GeminiService:
             # Connect directly to Gemini. Local development tools can inject a
             # loopback proxy that is not available to the running API process.
             with httpx.Client(timeout=90.0, trust_env=False) as client:
-                response = client.post(
-                    "https://generativelanguage.googleapis.com/v1beta/interactions",
-                    headers={
-                        "x-goog-api-key": self.api_key,
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "model": self.model,
-                        "input": input_data,
-                        "store": False,
-                        "response_format": {
-                            "type": "text",
-                            "mime_type": "application/json",
-                            "schema": output_model.model_json_schema(),
-                        },
-                    },
+                response_schema = self._response_schema(output_model)
+                response = self._post_interaction(
+                    client=client,
+                    model=self.model,
+                    input_data=input_data,
+                    response_schema=response_schema,
                 )
+
+                if (
+                    response.status_code == httpx.codes.TOO_MANY_REQUESTS
+                    and self.fallback_model
+                    and self.fallback_model != self.model
+                ):
+                    logger.warning(
+                        "Gemini primary model rate limited; retrying configured fallback."
+                    )
+                    response = self._post_interaction(
+                        client=client,
+                        model=self.fallback_model,
+                        input_data=input_data,
+                        response_schema=response_schema,
+                    )
             response.raise_for_status()
             output_text = self._extract_output_text(response.json())
             return output_model.model_validate_json(output_text)
@@ -187,6 +198,32 @@ class GeminiService:
             raise GeminiServiceError(
                 "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
             ) from exc
+
+    def _post_interaction(
+        self,
+        *,
+        client: httpx.Client,
+        model: str,
+        input_data: str | list[dict[str, str]],
+        response_schema: dict[str, Any],
+    ) -> httpx.Response:
+        return client.post(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            headers={
+                "x-goog-api-key": self.api_key,
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "input": input_data,
+                "store": False,
+                "response_format": {
+                    "type": "text",
+                    "mime_type": "application/json",
+                    "schema": response_schema,
+                },
+            },
+        )
 
     @staticmethod
     def _extract_output_text(interaction: dict[str, object]) -> str:
@@ -212,6 +249,40 @@ class GeminiService:
                     return item["text"]
 
         raise GeminiServiceError("لم تُرجع خدمة الذكاء الاصطناعي نصاً صالحاً.")
+
+    @classmethod
+    def _response_schema(cls, output_model: type[OutputModel]) -> dict[str, Any]:
+        schema = copy.deepcopy(output_model.model_json_schema())
+
+        if output_model is SimplificationOutput:
+            properties = schema.get("properties")
+            if isinstance(properties, dict):
+                properties.pop("adaptation_strategy", None)
+            required = schema.get("required")
+            if isinstance(required, list):
+                schema["required"] = [
+                    field for field in required if field != "adaptation_strategy"
+                ]
+
+        return cls._sanitize_response_schema(schema)
+
+    @classmethod
+    def _sanitize_response_schema(cls, node: Any) -> Any:
+        if isinstance(node, list):
+            return [cls._sanitize_response_schema(item) for item in node]
+        if not isinstance(node, dict):
+            return node
+
+        sanitized: dict[str, Any] = {}
+        for key, value in node.items():
+            if key in {"title", "description", "default", "examples"}:
+                continue
+            sanitized[key] = cls._sanitize_response_schema(value)
+
+        if sanitized.get("type") == "integer" and "enum" in sanitized:
+            sanitized.pop("enum", None)
+
+        return sanitized
 
     @staticmethod
     def _build_simplification_prompt(
@@ -270,4 +341,8 @@ class GeminiService:
 @lru_cache
 def get_gemini_service() -> GeminiService:
     settings = get_settings()
-    return GeminiService(api_key=settings.gemini_api_key, model=settings.ai_model)
+    return GeminiService(
+        api_key=settings.gemini_api_key,
+        model=settings.ai_model,
+        fallback_model=settings.ai_fallback_model,
+    )

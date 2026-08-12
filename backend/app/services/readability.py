@@ -168,8 +168,12 @@ def _build_reasons(
         reasons.append("متوسط طول الجملة مرتفع.")
     elif average_sentence_length >= 15:
         reasons.append("توجد جمل متوسطة الطول تحتاج متابعة دقيقة.")
-    if long_sentence_count:
-        reasons.append(f"توجد {long_sentence_count} جملة طويلة أو مركبة.")
+    if long_sentence_count == 1:
+        reasons.append("توجد جملة طويلة أو مركبة.")
+    elif long_sentence_count == 2:
+        reasons.append("توجد جملتان طويلتان أو مركبتان.")
+    elif long_sentence_count:
+        reasons.append(f"توجد {long_sentence_count} جمل طويلة أو مركبة.")
     if formal_terms:
         reasons.append("يظهر في النص أسلوب رسمي أو إداري.")
     if technical_terms:

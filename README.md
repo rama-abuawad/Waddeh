@@ -97,10 +97,11 @@ Create `.env` from `.env.example`:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 FRONTEND_ORIGIN=http://localhost:3000
 AI_MODEL=gemini-3.6-flash
+AI_FALLBACK_MODEL=gemini-3.5-flash
 GEMINI_API_KEY=
 ```
 
-Only populate `GEMINI_API_KEY` locally. Never commit `.env`.
+Only populate `GEMINI_API_KEY` locally. `AI_FALLBACK_MODEL` is used only when the primary model returns an HTTP 429 rate-limit response; set it blank to disable fallback. Never commit `.env`.
 
 ## Installation
 
@@ -146,10 +147,11 @@ npm exec --workspace frontend -- tsc --noEmit
 npm run build:frontend
 backend\.venv\Scripts\python.exe -m pytest backend\tests
 backend\.venv\Scripts\python.exe evaluation\check_deterministic.py
+backend\.venv\Scripts\python.exe evaluation\live_gemini_smoke.py
 git ls-files .env
 ```
 
-`git ls-files .env` should print nothing.
+The live smoke test requires a local `GEMINI_API_KEY`. It exercises text adaptation, semantic integrity, Bridge Mode, Word Lens, and PDF understanding without printing the key. `git ls-files .env` should print nothing.
 
 ## API Summary
 
@@ -175,7 +177,7 @@ See `documentation/privacy-security.md`.
 
 Planned after the competition MVP:
 
-- Live QA after a Gemini key is configured.
+- Broader reviewed live-AI evaluation across learner levels and document styles.
 - Better sentence-level Bridge Mode alignment.
 - More learner progress signals without overclaiming personalization depth.
 - Expanded evaluation with reviewed AI outputs and real learner testing.

@@ -15,8 +15,11 @@ Backend tests cover:
 - Deterministic readability signals.
 - Deterministic number/date preservation.
 - Deterministic missing-number detection.
+- Gemini-compatible structured response schemas.
 
 The deterministic evaluation runner in `evaluation/` uses representative self-created Arabic passages and does not require Gemini.
+
+The opt-in `evaluation/live_gemini_smoke.py` runner uses the locally configured Gemini key to exercise real text adaptation, semantic integrity, Bridge Mode, Word Lens, and PDF understanding. It reports only safe status summaries and does not expose the key.
 
 ## What Deterministic Checks Can Prove
 

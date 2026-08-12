@@ -23,6 +23,15 @@ def test_readability_assessment_reports_deterministic_signals() -> None:
     }
 
 
+def test_readability_reason_uses_natural_singular_arabic() -> None:
+    text = " ".join(["يتعين"] * 22) + "."
+
+    assessment = assess_readability(text)
+
+    assert assessment.deterministic.long_sentence_count == 1
+    assert "توجد جملة طويلة أو مركبة." in assessment.heuristic_estimate.reasons
+
+
 def test_integrity_preserves_numbers_and_dates() -> None:
     source = "يجب تقديم 3 وثائق قبل تاريخ 30 أغسطس 2026."
     adapted = "يجب أن تقدم 3 وثائق قبل 30 أغسطس 2026."

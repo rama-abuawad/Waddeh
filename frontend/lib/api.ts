@@ -1,9 +1,47 @@
 export type ReaderType = "child" | "general_reader" | "non_arabic_speaker";
+export type ConfidenceLevel = "low" | "medium" | "high";
+export type IntegrityStatus = "no_issue_detected" | "needs_attention" | "unavailable";
+export type IntegrityItemStatus = "preserved" | "missing" | "changed" | "no_issue_detected";
+export type ReadabilityLevel = "beginner" | "easy" | "standard" | "advanced";
 
 export interface SimplifyPayload {
   text: string;
   reader: ReaderType;
   level: number;
+}
+
+export interface ReadabilityRequest {
+  text: string;
+}
+
+export interface ReadabilityAssessment {
+  deterministic: {
+    sentence_count: number;
+    word_count: number;
+    average_sentence_length: number;
+    long_sentence_count: number;
+    long_sentence_examples: string[];
+    difficult_vocabulary_indicators: string[];
+    formal_vocabulary_indicators: string[];
+    technical_vocabulary_indicators: string[];
+    numeric_item_count: number;
+    date_reference_count: number;
+    reasons: string[];
+  };
+  heuristic_estimate: {
+    status: "available" | "heuristic" | "unavailable";
+    estimated_level: ReadabilityLevel | null;
+    recommended_level: number | null;
+    confidence: ConfidenceLevel;
+    reasons: string[];
+  };
+  ai_estimate: {
+    status: "available" | "heuristic" | "unavailable";
+    estimated_level: ReadabilityLevel | null;
+    recommended_level: number | null;
+    confidence: ConfidenceLevel;
+    reasons: string[];
+  };
 }
 
 export interface ChangeItem {
@@ -13,6 +51,62 @@ export interface ChangeItem {
   reason_english: string;
 }
 
+export interface AdaptationStrategy {
+  target_level: number;
+  target_level_label: string;
+  vocabulary_control: string;
+  sentence_control: string;
+  explanation_control: string;
+  terminology_policy: string;
+}
+
+export interface BridgeTransition {
+  simpler_phrase: string;
+  richer_phrase: string;
+  explanation: string;
+  explanation_english: string;
+}
+
+export interface BridgeLevel {
+  level: number;
+  label_ar: string;
+  label_en: string;
+  text: string;
+  reintroduced_items: BridgeTransition[];
+}
+
+export interface BridgeMode {
+  current_level: number;
+  guidance: string;
+  guidance_english: string;
+  levels: BridgeLevel[];
+}
+
+export interface MeaningIntegrityReport {
+  status: IntegrityStatus;
+  confidence: ConfidenceLevel;
+  deterministic_checks: Array<{
+    kind: string;
+    value: string;
+    source_count: number;
+    adapted_count: number;
+    status: IntegrityItemStatus;
+    note: string;
+  }>;
+  preserved_items: string[];
+  changed_items: string[];
+  missing_items: string[];
+  warnings: string[];
+  semantic_verification: {
+    status: IntegrityStatus;
+    confidence: ConfidenceLevel;
+    preserved_items: string[];
+    changed_items: string[];
+    missing_items: string[];
+    warnings: string[];
+  } | null;
+}
+
 export interface WordExplanation {
   word: string;
   diacritized_word: string;
@@ -20,10 +114,13 @@ export interface WordExplanation {
   root: string;
   synonym: string;
   english: string;
+  example: string;
+  confidence: ConfidenceLevel;
 }
 
 export interface SimplificationResult {
   original_text: string;
+  adaptation_strategy: AdaptationStrategy;
   simplified_text: string;
   diacritized_text: string;
   english_translation: string;
@@ -37,6 +134,7 @@ export interface SimplificationResult {
   visual_steps: string[];
   visual_steps_english: string[];
   change_map: ChangeItem[];
+  bridge: BridgeMode;
   comprehension_check: {
     question: string;
     answer: string;
@@ -45,6 +143,8 @@ export interface SimplificationResult {
   };
   reader: ReaderType;
   level: number;
+  readability: ReadabilityAssessment;
+  meaning_integrity: MeaningIntegrityReport;
   source_name: string | null;
 }
 
@@ -96,6 +196,14 @@ export function simplifyText(payload: SimplifyPayload): Promise<SimplificationRe
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export function assessReadability(payload: ReadabilityRequest): Promise<ReadabilityAssessment> {
+  return requestJson<ReadabilityAssessment>("/api/readability", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 30_000);
 }
 
 export function simplifyPdf(

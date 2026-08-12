@@ -4,9 +4,11 @@ import { FormEvent, useEffect, useState } from "react";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
+  ReadabilityAssessment,
   ReaderType,
   SimplificationResult,
   WordExplanation,
+  assessReadability,
   explainWord,
   simplifyPdf,
   simplifyText,
@@ -14,7 +16,7 @@ import {
 import { UiLanguage, uiCopy } from "@/lib/ui-copy";
 
 type ResultView = "clear" | "english" | "original";
-type ResultTool = "changes" | "check" | "learning" | "trust" | "visual";
+type ResultTool = "bridge" | "changes" | "check" | "learning" | "trust" | "visual";
 type SourceMode = "text" | "pdf";
 
 interface SavedWord extends WordExplanation {
@@ -24,9 +26,11 @@ interface SavedWord extends WordExplanation {
 
 interface LearningProfile {
   readings: number;
+  preferredLevel: number;
+  highestBridgeLevel: number;
 }
 
-const initialProfile: LearningProfile = { readings: 0 };
+const initialProfile: LearningProfile = { readings: 0, preferredLevel: 2, highestBridgeLevel: 2 };
 
 const exampleText =
   "يتعين على المتقدم استيفاء جميع المتطلبات المنصوص عليها قبل انقضاء المهلة المحددة، ولن تُقبل الطلبات التي تُرسل بعد تاريخ 30 أغسطس 2026.";
@@ -41,6 +45,14 @@ const audiences: Array<{
   { value: "general_reader", marker: "و", level: 2 },
 ];
 
+const learnerLevels = [
+  { value: 1, marker: "1", ar: "مبتدئ", en: "Beginner", hintAr: "جمل قصيرة جداً", hintEn: "Very short sentences" },
+  { value: 2, marker: "2", ar: "سهل", en: "Easy", hintAr: "العربية الواضحة", hintEn: "Clear Arabic" },
+  { value: 3, marker: "3", ar: "قياسي", en: "Standard", hintAr: "فصحى طبيعية", hintEn: "Natural MSA" },
+  { value: 4, marker: "4", ar: "متقدم", en: "Advanced", hintAr: "أقرب إلى الأصل", hintEn: "Closer to original" },
+  { value: 5, marker: "5", ar: "أصلي", en: "Original", hintAr: "النص كما هو", hintEn: "Original wording" },
+];
+
 const resultViews: ResultView[] = ["clear", "english", "original"];
 const featureMarks = ["TXT", "PDF", "Aa"];
 
@@ -50,6 +62,8 @@ export default function Home() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("text");
   const [reader, setReader] = useState<ReaderType>("general_reader");
+  const [learnerLevel, setLearnerLevel] = useState(2);
+  const [readabilityPreview, setReadabilityPreview] = useState<ReadabilityAssessment | null>(null);
   const [profile, setProfile] = useState<LearningProfile>(initialProfile);
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
   const [result, setResult] = useState<SimplificationResult | null>(null);
@@ -74,7 +88,7 @@ export default function Home() {
   const selectedAudience =
     audiences.find((audience) => audience.value === reader) ?? audiences[2];
   const isEnglishFirst = reader === "non_arabic_speaker";
-  const selectedLevel = selectedAudience.level;
+  const selectedLevel = learnerLevel;
 
   useEffect(() => {
     const restoreProgress = window.setTimeout(() => {
@@ -83,7 +97,12 @@ export default function Home() {
         const storedProfile = window.localStorage.getItem("waddeh-learning-profile");
         const storedLanguage = window.localStorage.getItem("waddeh-language");
         if (storedWords) setSavedWords(JSON.parse(storedWords) as SavedWord[]);
-        if (storedProfile) setProfile(JSON.parse(storedProfile) as LearningProfile);
+        if (storedProfile) {
+          const parsedProfile = JSON.parse(storedProfile) as Partial<LearningProfile>;
+          const restoredProfile = { ...initialProfile, ...parsedProfile };
+          setProfile(restoredProfile);
+          setLearnerLevel(restoredProfile.preferredLevel);
+        }
         if (storedLanguage === "ar" || storedLanguage === "en") setUiLanguage(storedLanguage);
       } catch {
         // Local progress is optional; the main reading experience still works.
@@ -130,6 +149,7 @@ export default function Home() {
     event.preventDefault();
     setError("");
     setResult(null);
+    setReadabilityPreview(null);
     setActiveTool(null);
     setShowAnswer(false);
     setCheckRated(false);
@@ -150,12 +170,23 @@ export default function Home() {
 
     setIsLoading(true);
     try {
+      if (sourceMode === "text") {
+        const assessment = await assessReadability({ text: text.trim() });
+        setReadabilityPreview(assessment);
+      }
       const response = sourceMode === "pdf" && pdfFile
         ? await simplifyPdf(pdfFile, reader, selectedLevel)
         : await simplifyText({ text: text.trim(), reader, level: selectedLevel });
       setResult(response);
+      setReadabilityPreview(response.readability);
       setResultView(uiLanguage === "en" || isEnglishFirst ? "english" : "clear");
-      persistProfile({ ...profile, readings: profile.readings + 1 });
+      setActiveTool("bridge");
+      persistProfile({
+        ...profile,
+        readings: profile.readings + 1,
+        preferredLevel: selectedLevel,
+        highestBridgeLevel: Math.max(profile.highestBridgeLevel, selectedLevel),
+      });
     } catch (requestError) {
       setError(
         uiLanguage === "ar" && requestError instanceof Error
@@ -211,6 +242,8 @@ export default function Home() {
       root: "—",
       synonym: "—",
       english: card.english_meaning,
+      example: "",
+      confidence: "medium",
     });
   }
 
@@ -252,6 +285,7 @@ export default function Home() {
     setText("");
     setPdfFile(null);
     setError("");
+    setReadabilityPreview(null);
     setWordLens(null);
     setActiveTool(null);
   }
@@ -392,6 +426,13 @@ export default function Home() {
         </section>
 
         <section id="workspace" className="mx-auto mt-10 max-w-4xl scroll-mt-6">
+          <JourneyRail
+            uiLanguage={uiLanguage}
+            hasSource={sourceMode === "pdf" ? Boolean(pdfFile) : text.trim().length >= 20}
+            hasReadability={Boolean(readabilityPreview ?? result?.readability)}
+            hasResult={Boolean(result)}
+            hasBridge={Boolean(result?.bridge?.levels?.length)}
+          />
           <form onSubmit={handleSubmit} className="workspace-card">
             <div className="border-b border-ink/10 px-5 py-6 sm:px-8">
               <div className="mb-4 flex items-center gap-3">
@@ -413,7 +454,9 @@ export default function Home() {
                       aria-pressed={active}
                       onClick={() => {
                         setReader(audience.value);
+                        setLearnerLevel(audience.level);
                         setResult(null);
+                        setReadabilityPreview(null);
                         setError("");
                       }}
                       className={`audience-card ${active ? "audience-card-active" : ""}`}
@@ -431,6 +474,42 @@ export default function Home() {
                     </button>
                   );
                 })}
+              </div>
+
+              <div className="learner-level-block">
+                <div className="learner-level-heading">
+                  <span className="step-number">3</span>
+                  <div>
+                    <h2>{uiLanguage === "ar" ? "ما مستوى العربية الآن؟" : "What Arabic level should Waddeh target?"}</h2>
+                    <p>
+                      {uiLanguage === "ar"
+                        ? `اقتراح هذا القارئ: ${levelLabel(selectedAudience.level, uiLanguage)}. يمكنك تغييره.`
+                        : `Suggested for this reader: ${levelLabel(selectedAudience.level, uiLanguage)}. You can change it.`}
+                    </p>
+                  </div>
+                </div>
+                <div className="learner-level-grid" role="radiogroup" aria-label={uiLanguage === "ar" ? "مستوى المتعلم" : "Learner level"}>
+                  {learnerLevels.map((level) => {
+                    const active = learnerLevel === level.value;
+                    return (
+                      <button
+                        key={level.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => {
+                          setLearnerLevel(level.value);
+                          setResult(null);
+                          setReadabilityPreview(null);
+                        }}
+                        className={`level-chip ${active ? "level-chip-active" : ""}`}
+                      >
+                        <span>{level.marker}</span>
+                        <strong>{uiLanguage === "ar" ? level.ar : level.en}</strong>
+                        <small>{uiLanguage === "ar" ? level.hintAr : level.hintEn}</small>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
             </div>
@@ -524,6 +603,14 @@ export default function Home() {
             </div>
           </form>
 
+          {(readabilityPreview || result?.readability) && (
+            <ReadabilityPanel
+              assessment={(result?.readability ?? readabilityPreview)!}
+              targetLevel={selectedLevel}
+              uiLanguage={uiLanguage}
+            />
+          )}
+
           {result && (
             <section id="result" className="result-shell scroll-mt-6" aria-live="polite">
               <div className="result-header">
@@ -610,6 +697,13 @@ export default function Home() {
               <div id="result-tools" className="result-tools-section scroll-mt-6">
                 <p className="mb-3 text-xs font-black text-ink/40">{t.tools.intro}</p>
                 <div className="tool-grid">
+                  <button type="button" onClick={() => toggleTool("bridge")} className={`result-tool result-tool-primary ${activeTool === "bridge" ? "result-tool-active" : ""}`}>
+                    <span className="tool-mark">↗</span>
+                    <span>
+                      <strong>{uiLanguage === "ar" ? "Bridge Mode" : "Bridge Mode"}</strong>
+                      <small>{uiLanguage === "ar" ? "اقترب من النص الأصلي تدريجياً" : "Move toward the original gradually"}</small>
+                    </span>
+                  </button>
                   <button type="button" onClick={toggleSpeech} className="result-tool">
                     <span className="tool-mark">{isSpeaking ? "Ⅱ" : "▶"}</span>
                     <span><strong>{isSpeaking ? t.tools.stopSpeech : t.tools.speech}</strong><small>{t.tools.speechDescription}</small></span>
@@ -640,6 +734,18 @@ export default function Home() {
 
                 {activeTool && (
                   <div className="tool-panel">
+                    {activeTool === "bridge" && (
+                      <div>
+                        <PanelHeading
+                          title={uiLanguage === "ar" ? "Bridge Mode: طريق العودة إلى الأصل" : "Bridge Mode: back toward the original"}
+                          description={uiLanguage === "ar" ? result.bridge.guidance : result.bridge.guidance_english}
+                          closeLabel={t.wordLens.close}
+                          onClose={() => setActiveTool(null)}
+                        />
+                        <BridgeModePanel result={result} uiLanguage={uiLanguage} />
+                      </div>
+                    )}
+
                     {activeTool === "learning" && (
                       <div>
                         <PanelHeading
@@ -738,12 +844,17 @@ export default function Home() {
 
                     {activeTool === "trust" && (
                       <div>
-                        <PanelHeading title={t.panels.trustTitle} description={t.panels.trustDescription} closeLabel={t.wordLens.close} onClose={() => setActiveTool(null)} />
-                        {result.preserved_details.length > 0 ? (
-                          <ul className="mt-5 flex flex-wrap gap-2">
-                            {(uiLanguage === "en" ? result.preserved_details_english : result.preserved_details).map((detail) => <li key={detail} className="trust-chip">✓ {detail}</li>)}
-                          </ul>
-                        ) : <p className="mt-5 text-sm text-ink/60">{t.panels.noDetails}</p>}
+                        <PanelHeading
+                          title={uiLanguage === "ar" ? "Meaning Integrity" : "Meaning Integrity"}
+                          description={
+                            uiLanguage === "ar"
+                              ? "فحص مستقل لا يدّعي اليقين الكامل: يراجع الأرقام والتواريخ والقوائم، ثم يضيف تحققاً دلالياً عند توفره."
+                              : "An independent check that does not claim certainty: deterministic facts first, semantic review when available."
+                          }
+                          closeLabel={t.wordLens.close}
+                          onClose={() => setActiveTool(null)}
+                        />
+                        <IntegrityPanel result={result} uiLanguage={uiLanguage} />
                       </div>
                     )}
                   </div>
@@ -795,3 +906,202 @@ function PanelHeading({
     </div>
   );
 }
+
+function JourneyRail({
+  uiLanguage,
+  hasSource,
+  hasReadability,
+  hasResult,
+  hasBridge,
+}: {
+  uiLanguage: UiLanguage;
+  hasSource: boolean;
+  hasReadability: boolean;
+  hasResult: boolean;
+  hasBridge: boolean;
+}) {
+  const steps = uiLanguage === "ar"
+    ? ["أضف العربية", "افهم الصعوبة", "اختر المستوى", "اقرأ النص", "تعلّم الفروق", "افحص المعنى", "اقترب من الأصل"]
+    : ["Add Arabic", "Source difficulty", "Choose level", "Read adaptation", "Learn changes", "Meaning integrity", "Bridge to original"];
+  const done = [hasSource, hasReadability, true, hasResult, hasResult, hasResult, hasBridge];
+
+  return (
+    <nav className="journey-rail" aria-label={uiLanguage === "ar" ? "رحلة وضّح" : "Waddeh journey"}>
+      {steps.map((step, index) => (
+        <span key={step} className={done[index] ? "journey-step journey-step-done" : "journey-step"}>
+          <b>{index + 1}</b>
+          <small>{step}</small>
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function ReadabilityPanel({
+  assessment,
+  targetLevel,
+  uiLanguage,
+}: {
+  assessment: ReadabilityAssessment;
+  targetLevel: number;
+  uiLanguage: UiLanguage;
+}) {
+  const signals = assessment.deterministic;
+  const estimate = assessment.heuristic_estimate;
+  const reasons = estimate.reasons.length > 0 ? estimate.reasons : signals.reasons;
+
+  return (
+    <section className="readability-panel" aria-live="polite">
+      <div>
+        <p>{uiLanguage === "ar" ? "Source difficulty" : "Source difficulty"}</p>
+        <h2>{levelLabelFromReadability(estimate.estimated_level, uiLanguage)}</h2>
+        <span>
+          {uiLanguage === "ar"
+            ? `المستوى المطلوب: ${levelLabel(targetLevel, uiLanguage)} · تقدير تجريبي`
+            : `Target level: ${levelLabel(targetLevel, uiLanguage)} · heuristic estimate`}
+        </span>
+      </div>
+      <div className="readability-metrics">
+        <Metric label={uiLanguage === "ar" ? "الجمل" : "Sentences"} value={signals.sentence_count} />
+        <Metric label={uiLanguage === "ar" ? "متوسط الكلمات" : "Avg words"} value={signals.average_sentence_length} />
+        <Metric label={uiLanguage === "ar" ? "جمل طويلة" : "Long sentences"} value={signals.long_sentence_count} />
+        <Metric label={uiLanguage === "ar" ? "أرقام/تواريخ" : "Numbers/dates"} value={signals.numeric_item_count + signals.date_reference_count} />
+      </div>
+      <ul>
+        {reasons.slice(0, 4).map((reason) => (
+          <li key={reason}>{reason}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function BridgeModePanel({
+  result,
+  uiLanguage,
+}: {
+  result: SimplificationResult;
+  uiLanguage: UiLanguage;
+}) {
+  return (
+    <div className="bridge-panel">
+      {result.bridge.levels.map((level, index) => (
+        <article key={`${level.level}-${index}`}>
+          <div className="bridge-level-heading">
+            <span>{index + 1}</span>
+            <div>
+              <h4>{uiLanguage === "ar" ? level.label_ar : level.label_en}</h4>
+              <p>{levelLabel(level.level, uiLanguage)}</p>
+            </div>
+          </div>
+          <p dir="rtl" className="bridge-text">{level.text}</p>
+          {level.reintroduced_items.length > 0 && (
+            <div className="bridge-transitions">
+              {level.reintroduced_items.map((item) => (
+                <span key={`${item.simpler_phrase}-${item.richer_phrase}`}>
+                  <strong dir="rtl">{item.simpler_phrase} → {item.richer_phrase}</strong>
+                  <small>{uiLanguage === "ar" ? item.explanation : item.explanation_english}</small>
+                </span>
+              ))}
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function IntegrityPanel({
+  result,
+  uiLanguage,
+}: {
+  result: SimplificationResult;
+  uiLanguage: UiLanguage;
+}) {
+  const report = result.meaning_integrity;
+  const checks = report.deterministic_checks.slice(0, 10);
+  const preserved = uiLanguage === "en"
+    ? result.preserved_details_english
+    : [...report.preserved_items, ...result.preserved_details];
+
+  return (
+    <div className="integrity-panel">
+      <div className={`integrity-status integrity-status-${report.status}`}>
+        <strong>{integrityStatusLabel(report.status, uiLanguage)}</strong>
+        <span>{uiLanguage === "ar" ? `الثقة: ${confidenceLabel(report.confidence, uiLanguage)}` : `Confidence: ${confidenceLabel(report.confidence, uiLanguage)}`}</span>
+      </div>
+      {checks.length > 0 && (
+        <div className="integrity-checks">
+          {checks.map((check) => (
+            <span key={`${check.kind}-${check.value}`}>
+              <b>{check.status === "preserved" ? "✓" : "!"}</b>
+              <small>{check.kind}: {check.value}</small>
+            </span>
+          ))}
+        </div>
+      )}
+      {preserved.length > 0 && (
+        <ul className="mt-5 flex flex-wrap gap-2">
+          {preserved.slice(0, 10).map((detail) => <li key={detail} className="trust-chip">✓ {detail}</li>)}
+        </ul>
+      )}
+      {report.missing_items.length > 0 && (
+        <ul className="integrity-warnings">
+          {report.missing_items.map((item) => <li key={item}>! {item}</li>)}
+        </ul>
+      )}
+      {report.warnings.length > 0 && (
+        <ul className="integrity-warnings">
+          {report.warnings.map((warning) => <li key={warning}>! {warning}</li>)}
+        </ul>
+      )}
+      {preserved.length === 0 && checks.length === 0 && report.warnings.length === 0 && (
+        <p className="mt-5 text-sm text-ink/60">{uiLanguage === "ar" ? tFallbackNoDetailsAr : "No deterministic details were available for a separate display."}</p>
+      )}
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <span>
+      <strong>{value}</strong>
+      <small>{label}</small>
+    </span>
+  );
+}
+
+function levelLabel(level: number, uiLanguage: UiLanguage): string {
+  const match = learnerLevels.find((item) => item.value === level);
+  if (!match) return uiLanguage === "ar" ? "غير محدد" : "Not set";
+  return uiLanguage === "ar" ? match.ar : match.en;
+}
+
+function levelLabelFromReadability(level: ReadabilityAssessment["heuristic_estimate"]["estimated_level"], uiLanguage: UiLanguage): string {
+  const labels = {
+    beginner: uiLanguage === "ar" ? "مبتدئ" : "Beginner",
+    easy: uiLanguage === "ar" ? "سهل" : "Easy",
+    standard: uiLanguage === "ar" ? "قياسي" : "Standard",
+    advanced: uiLanguage === "ar" ? "متقدم" : "Advanced",
+  };
+  return level ? labels[level] : uiLanguage === "ar" ? "غير محدد" : "Not available";
+}
+
+function confidenceLabel(confidence: string, uiLanguage: UiLanguage): string {
+  const labels: Record<string, string> = uiLanguage === "ar"
+    ? { low: "منخفضة", medium: "متوسطة", high: "عالية" }
+    : { low: "low", medium: "medium", high: "high" };
+  return labels[confidence] ?? confidence;
+}
+
+function integrityStatusLabel(status: string, uiLanguage: UiLanguage): string {
+  if (status === "needs_attention") {
+    return uiLanguage === "ar" ? "يحتاج مراجعة" : "Needs attention";
+  }
+  if (status === "unavailable") {
+    return uiLanguage === "ar" ? "غير متاح بالكامل" : "Partly unavailable";
+  }
+  return uiLanguage === "ar" ? "لم تظهر مشكلة" : "No issue detected";
+}
+
+const tFallbackNoDetailsAr = "لم يجد الفحص الحتمي تفاصيل منفصلة لعرضها.";

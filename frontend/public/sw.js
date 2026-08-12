@@ -1,4 +1,4 @@
-const CACHE_NAME = "waddeh-shell-v1";
+const CACHE_NAME = "waddeh-shell-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon"];
 
 self.addEventListener("install", (event) => {

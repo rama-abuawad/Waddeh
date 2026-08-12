@@ -1235,6 +1235,102 @@ button {
   background: #f0f8f4;
 }
 
+.demo-example-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  text-align: start;
+}
+
+.demo-example-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.demo-example-button strong,
+.demo-example-button small {
+  display: block;
+}
+
+.demo-example-button strong {
+  font-size: 0.82rem;
+}
+
+.demo-example-button small {
+  margin-top: 0.12rem;
+  color: rgba(23, 55, 47, 0.5);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.demo-example-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.65rem;
+  background: #e4f2eb;
+  color: #0e6b5c;
+}
+
+.journey-loading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.85rem;
+  border: 1px solid rgba(14, 107, 92, 0.16);
+  border-radius: 1rem;
+  background: #f0f8f4;
+  padding: 0.85rem 1rem;
+  color: #17372f;
+}
+
+.journey-loading strong,
+.journey-loading small {
+  display: block;
+}
+
+.journey-loading strong {
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.journey-loading small {
+  margin-top: 0.18rem;
+  color: rgba(23, 55, 47, 0.58);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.35rem;
+}
+
+.journey-loading-pulse {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 9999px;
+  background: #0e6b5c;
+  box-shadow: 0 0 0 0 rgba(14, 107, 92, 0.32);
+  animation: loading-pulse 1.5s ease-out infinite;
+}
+
+.journey-loading-steps {
+  display: flex;
+  gap: 0.28rem;
+}
+
+.journey-loading-steps i {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 9999px;
+  background: rgba(14, 107, 92, 0.24);
+  animation: loading-step 1.2s ease-in-out infinite;
+}
+
+.journey-loading-steps i:nth-child(2) { animation-delay: 160ms; }
+.journey-loading-steps i:nth-child(3) { animation-delay: 320ms; }
+
 .result-tool-primary {
   border-color: rgba(14, 107, 92, 0.24);
   background: #f0f8f4;
@@ -1760,6 +1856,15 @@ button {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@keyframes loading-pulse {
+  70%, 100% { box-shadow: 0 0 0 9px rgba(14, 107, 92, 0); }
+}
+
+@keyframes loading-step {
+  0%, 100% { transform: translateY(0); background: rgba(14, 107, 92, 0.24); }
+  50% { transform: translateY(-3px); background: #0e6b5c; }
 }
 
 @keyframes reveal {

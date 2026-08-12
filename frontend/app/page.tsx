@@ -33,7 +33,7 @@ interface LearningProfile {
 const initialProfile: LearningProfile = { readings: 0, preferredLevel: 2, highestBridgeLevel: 2 };
 
 const exampleText =
-  "يتعين على المتقدم استيفاء جميع المتطلبات المنصوص عليها قبل انقضاء المهلة المحددة، ولن تُقبل الطلبات التي تُرسل بعد تاريخ 30 أغسطس 2026.";
+  "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
 
 const audiences: Array<{
   value: ReaderType;
@@ -313,6 +313,19 @@ export default function Home() {
     }
   }
 
+  function loadDemoExample() {
+    setSourceMode("text");
+    setText(exampleText);
+    setReader("general_reader");
+    setLearnerLevel(2);
+    setResult(null);
+    setReadabilityPreview(null);
+    setError("");
+    setActiveTool(null);
+    setWordLens(null);
+    window.setTimeout(() => document.getElementById("arabic-text")?.focus(), 0);
+  }
+
   return (
     <main
       lang={uiLanguage}
@@ -478,7 +491,7 @@ export default function Home() {
 
               <div className="learner-level-block">
                 <div className="learner-level-heading">
-                  <span className="step-number">3</span>
+                  <span className="step-number">2</span>
                   <div>
                     <h2>{uiLanguage === "ar" ? "ما مستوى العربية الآن؟" : "What Arabic level should Waddeh target?"}</h2>
                     <p>
@@ -517,7 +530,7 @@ export default function Home() {
             <div className="px-5 py-6 sm:px-8 sm:py-8">
               <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="step-number">2</span>
+                  <span className="step-number">3</span>
                   <div>
                     <h2 className="font-black">{t.sourceStep.title}</h2>
                     <p className="text-xs text-ink/40">{t.sourceStep.subtitle}</p>
@@ -589,17 +602,28 @@ export default function Home() {
                 {sourceMode === "text" && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setText(exampleText);
-                      setResult(null);
-                      setError("");
-                    }}
-                    className="secondary-button"
+                    disabled={isLoading}
+                    onClick={loadDemoExample}
+                    className="secondary-button demo-example-button"
                   >
-                    {t.actions.sample}
+                    <span aria-hidden="true" className="demo-example-mark">✦</span>
+                    <span><strong>{t.actions.sample}</strong><small>{t.actions.sampleHint}</small></span>
                   </button>
                 )}
               </div>
+
+              {isLoading && (
+                <div className="journey-loading" role="status" aria-live="polite">
+                  <span className="journey-loading-pulse" aria-hidden="true" />
+                  <span>
+                    <strong>{t.actions.loadingTitle}</strong>
+                    <small>{t.actions.loadingDetail}</small>
+                  </span>
+                  <span className="journey-loading-steps" aria-hidden="true">
+                    <i /><i /><i />
+                  </span>
+                </div>
+              )}
             </div>
           </form>
 
@@ -845,7 +869,7 @@ export default function Home() {
                     {activeTool === "trust" && (
                       <div>
                         <PanelHeading
-                          title={uiLanguage === "ar" ? "Meaning Integrity" : "Meaning Integrity"}
+                          title={uiLanguage === "ar" ? "سلامة المعنى · Meaning Integrity" : "Meaning Integrity"}
                           description={
                             uiLanguage === "ar"
                               ? "فحص مستقل لا يدّعي اليقين الكامل: يراجع الأرقام والتواريخ والقوائم، ثم يضيف تحققاً دلالياً عند توفره."

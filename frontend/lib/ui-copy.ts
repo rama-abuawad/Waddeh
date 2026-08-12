@@ -72,11 +72,14 @@ export const uiCopy = {
     },
     actions: {
       loading: "نحلل ونكيّف ونفحص…",
+      loadingTitle: "نبني رحلة القراءة الآن",
+      loadingDetail: "نحلل الصعوبة، نكيّف العربية، ثم نراجع المعنى ونجهّز Bridge Mode. قد تستغرق الرحلة لحظات.",
       wait: "يرجى الانتظار",
       start: "ابدأ",
       understandPdf: "ابدأ رحلة المستند",
       clarifyText: "ابدأ رحلة النص",
-      sample: "جرّب بنص إداري قصير",
+      sample: "جرّب المثال الكامل",
+      sampleHint: "نص إداري فيه تاريخ وموعد وشروط واستثناء",
     },
     result: {
       ready: "النتيجة جاهزة",
@@ -109,8 +112,8 @@ export const uiCopy = {
       checkDescription: "سؤال قصير من النص",
       visual: "المحتوى في خطوات",
       visualDescription: "رؤية بصرية سريعة",
-      trust: "Meaning Integrity",
-      trustDescription: "فحص مستقل للتفاصيل الحساسة",
+      trust: "سلامة المعنى",
+      trustDescription: "Meaning Integrity · فحص مستقل",
     },
     panels: {
       learningTitle: "تعلّم من النص نفسه",
@@ -201,11 +204,14 @@ export const uiCopy = {
     },
     actions: {
       loading: "Analyzing, adapting, and checking…",
+      loadingTitle: "Building your reading journey",
+      loadingDetail: "Waddeh is assessing difficulty, adapting the Arabic, checking meaning, and preparing Bridge Mode. This may take a moment.",
       wait: "Please wait",
       start: "Start",
       understandPdf: "Start document journey",
       clarifyText: "Start text journey",
-      sample: "Try a short admin example",
+      sample: "Try the complete example",
+      sampleHint: "A formal passage with a date, deadline, conditions, and an exception",
     },
     result: {
       ready: "Your result is ready",

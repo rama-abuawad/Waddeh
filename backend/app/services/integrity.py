@@ -40,9 +40,7 @@ def build_deterministic_integrity_report(
         return MeaningIntegrityReport(
             status=IntegrityStatus.unavailable,
             confidence=ConfidenceLevel.low,
-            warnings=[
-                "لا يتوفر نص المصدر الكامل للفحص الحتمي؛ يمكن استخدام التحقق الدلالي فقط."
-            ],
+            warnings=["لا يتوفر النص كاملاً، لذلك لم نتمكن من مراجعة الأرقام والتواريخ والقوائم."],
         )
 
     checks: list[DeterministicIntegrityCheck] = []
@@ -70,11 +68,11 @@ def build_deterministic_integrity_report(
         confidence = ConfidenceLevel.low
 
     warnings = [
-        f"قد يكون العنصر '{check.value}' مفقوداً من النص المتكيف."
+        f"تحقق من هذا العنصر؛ قد لا يظهر في النص الواضح: «{check.value}»."
         for check in missing[:6]
     ]
     if not checks:
-        warnings.append("لم يجد الفحص الحتمي أرقاماً أو تواريخ أو قوائم واضحة للمقارنة.")
+        warnings.append("لم نجد أرقاماً أو تواريخ أو قوائم تحتاج إلى مقارنة.")
 
     return MeaningIntegrityReport(
         status=status,
@@ -166,7 +164,7 @@ def _compare_list_count(source_text: str, adapted_text: str) -> list[Determinist
                 if adapted_count == source_count
                 else IntegrityItemStatus.changed
             ),
-            note="يقارن عدد عناصر القائمة الظاهرة فقط.",
+            note="نقارن عدد عناصر القائمة في الصياغتين.",
         )
     ]
 
@@ -192,7 +190,15 @@ def _normalize_fact(value: str) -> str:
 
 
 def _item_label(check: DeterministicIntegrityCheck) -> str:
-    return f"{check.kind}: {check.value}"
+    labels = {
+        "percentage": "نسبة",
+        "currency": "مبلغ",
+        "date": "تاريخ",
+        "time": "وقت",
+        "number": "رقم",
+        "list_count": "عناصر القائمة",
+    }
+    return f"{labels.get(check.kind, 'تفصيل مهم')}: {check.value}"
 
 
 def _dedupe(items: list[str]) -> list[str]:

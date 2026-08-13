@@ -7,6 +7,9 @@ from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
 from app.schemas import (
+    PoetryOutput,
+    PoetryRequest,
+    PoetryResponse,
     ReadabilityAssessment,
     ReadabilityRequest,
     ReaderType,
@@ -85,7 +88,7 @@ async def simplify(
         )
     except GeminiServiceError:
         deterministic_integrity.warnings.append(
-            "تعذر تشغيل التحقق الدلالي المستقل؛ تظهر نتيجة الفحص الحتمي فقط."
+            "تعذر إجراء المراجعة الإضافية؛ ما زالت مراجعة الأرقام والتواريخ متاحة."
         )
     meaning_integrity = combine_integrity_reports(
         deterministic=deterministic_integrity,
@@ -181,3 +184,29 @@ async def explain_word(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
+
+
+@app.post("/api/poetry/explain", response_model=PoetryResponse, tags=["reading", "learning"])
+async def explain_poetry(
+    request: PoetryRequest,
+    service: GeminiService = Depends(get_gemini_service),
+) -> PoetryResponse:
+    try:
+        result: PoetryOutput = await run_in_threadpool(service.explain_poetry, request)
+    except GeminiConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except GeminiServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    return PoetryResponse(
+        original_text=request.text,
+        reader=request.reader,
+        level=request.level,
+        **result.model_dump(),
+    )

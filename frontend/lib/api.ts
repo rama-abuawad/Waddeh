@@ -118,6 +118,27 @@ export interface WordExplanation {
   confidence: ConfidenceLevel;
 }
 
+export interface PoetryResult {
+  original_text: string;
+  reader: ReaderType;
+  level: number;
+  overview: string;
+  overview_english: string;
+  english_translation: string;
+  lines: Array<{
+    verse: string;
+    clear_meaning: string;
+    english_translation: string;
+  }>;
+  vocabulary: Array<{
+    word: string;
+    diacritized_word: string;
+    meaning: string;
+    english: string;
+    verse: string;
+  }>;
+}
+
 export interface SimplificationResult {
   original_text: string;
   adaptation_strategy: AdaptationStrategy;
@@ -232,4 +253,16 @@ export function explainWord(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }, 60_000);
+}
+
+export function explainPoetry(payload: {
+  text: string;
+  reader: ReaderType;
+  level: number;
+}): Promise<PoetryResult> {
+  return requestJson<PoetryResult>("/api/poetry/explain", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 90_000);
 }

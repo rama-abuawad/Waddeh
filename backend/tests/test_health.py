@@ -9,6 +9,9 @@ from app.schemas import (
     ConfidenceLevel,
     ComprehensionCheck,
     LearningCard,
+    PoetryLineExplanation,
+    PoetryOutput,
+    PoetryVocabularyItem,
     SemanticIntegrityAssessment,
     SimplificationOutput,
     SimplificationLevel,
@@ -53,7 +56,7 @@ class FakeGeminiService:
             ],
             bridge=BridgeMode(
                 current_level=SimplificationLevel.easy,
-                guidance="انتقل من النص السهل إلى الأصل عبر إعادة مفردة واحدة في كل خطوة.",
+                guidance="انتقل من النص السهل إلى صياغة أغنى عبر إعادة مفردة واحدة في كل خطوة.",
                 guidance_english="Move from clear Arabic to the original by reintroducing one item at a time.",
                 levels=[
                     BridgeLevel(
@@ -65,7 +68,7 @@ class FakeGeminiService:
                     ),
                     BridgeLevel(
                         level=SimplificationLevel.standard,
-                        label_ar="قياسي",
+                        label_ar="متوسط",
                         label_en="Standard",
                         text="يجب على المتقدم استيفاء الشروط قبل انتهاء الموعد.",
                         reintroduced_items=[
@@ -79,7 +82,7 @@ class FakeGeminiService:
                     ),
                     BridgeLevel(
                         level=SimplificationLevel.original,
-                        label_ar="أصلي",
+                        label_ar="كما ورد",
                         label_en="Original",
                         text="يتعين على المتقدم استيفاء جميع الشروط قبل انقضاء الموعد المحدد.",
                         reintroduced_items=[],
@@ -115,6 +118,44 @@ class FakeGeminiService:
             root="ق د م",
             synonym="مقدم الطلب",
             english="applicant",
+        )
+
+    def explain_poetry(self, _request: object) -> PoetryOutput:
+        return PoetryOutput(
+            overview="تأتي الأعمال الكبيرة بقدر عزيمة أصحابها.",
+            overview_english="Great achievements reflect the determination of those who pursue them.",
+            english_translation=(
+                "Determination comes in measure with those of resolve,\n"
+                "and noble deeds come in measure with the noble."
+            ),
+            lines=[
+                PoetryLineExplanation(
+                    verse="على قدر أهل العزم تأتي العزائم",
+                    clear_meaning="تكون الأعمال الكبيرة بقدر قوة إرادة أصحابها.",
+                    english_translation="Determination comes in measure with those of resolve.",
+                ),
+                PoetryLineExplanation(
+                    verse="وتأتي على قدر الكرام المكارم",
+                    clear_meaning="وتظهر الأعمال النبيلة بقدر نبل أصحابها.",
+                    english_translation="Noble deeds come in measure with the noble.",
+                ),
+            ],
+            vocabulary=[
+                PoetryVocabularyItem(
+                    word="العزم",
+                    diacritized_word="العَزْم",
+                    meaning="قوة الإرادة",
+                    english="determination",
+                    verse="على قدر أهل العزم تأتي العزائم",
+                ),
+                PoetryVocabularyItem(
+                    word="المكارم",
+                    diacritized_word="المَكارِم",
+                    meaning="الأعمال النبيلة",
+                    english="noble deeds",
+                    verse="وتأتي على قدر الكرام المكارم",
+                ),
+            ],
         )
 
 
@@ -196,6 +237,35 @@ def test_word_lens() -> None:
 
     assert response.status_code == 200
     assert response.json()["root"] == "ق د م"
+
+
+def test_poetry_explanation() -> None:
+    app.dependency_overrides[get_gemini_service] = lambda: FakeGeminiService()
+    try:
+        response = client.post(
+            "/api/poetry/explain",
+            json={
+                "text": "على قدر أهل العزم تأتي العزائم\nوتأتي على قدر الكرام المكارم",
+                "reader": "general_reader",
+                "level": 2,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["lines"][0]["clear_meaning"]
+    assert response.json()["vocabulary"][0]["english"] == "determination"
+    assert "Determination" in response.json()["english_translation"]
+
+
+def test_poetry_explanation_rejects_non_arabic_text() -> None:
+    response = client.post(
+        "/api/poetry/explain",
+        json={"text": "This is not an Arabic poem.", "reader": "general_reader", "level": 2},
+    )
+
+    assert response.status_code == 422
 
 
 def test_extracts_structured_text_from_interaction_steps() -> None:

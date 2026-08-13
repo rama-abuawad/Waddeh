@@ -4,11 +4,13 @@ import { FormEvent, useEffect, useState } from "react";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
+  PoetryResult,
   ReadabilityAssessment,
   ReaderType,
   SimplificationResult,
   WordExplanation,
   assessReadability,
+  explainPoetry,
   explainWord,
   simplifyPdf,
   simplifyText,
@@ -35,6 +37,9 @@ const initialProfile: LearningProfile = { readings: 0, preferredLevel: 2, highes
 const exampleText =
   "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
 
+const poetryExample =
+  "على قدر أهل العزم تأتي العزائمُ\nوتأتي على قدر الكرام المكارمُ";
+
 const audiences: Array<{
   value: ReaderType;
   marker: string;
@@ -47,14 +52,14 @@ const audiences: Array<{
 
 const learnerLevels = [
   { value: 1, marker: "1", ar: "مبتدئ", en: "Beginner", hintAr: "جمل قصيرة جداً", hintEn: "Very short sentences" },
-  { value: 2, marker: "2", ar: "سهل", en: "Easy", hintAr: "العربية الواضحة", hintEn: "Clear Arabic" },
-  { value: 3, marker: "3", ar: "قياسي", en: "Standard", hintAr: "فصحى طبيعية", hintEn: "Natural MSA" },
-  { value: 4, marker: "4", ar: "متقدم", en: "Advanced", hintAr: "أقرب إلى الأصل", hintEn: "Closer to original" },
-  { value: 5, marker: "5", ar: "أصلي", en: "Original", hintAr: "النص كما هو", hintEn: "Original wording" },
+  { value: 2, marker: "2", ar: "سهل", en: "Easy", hintAr: "كلمات مألوفة", hintEn: "Familiar words" },
+  { value: 3, marker: "3", ar: "متوسط", en: "Intermediate", hintAr: "فصحى واضحة", hintEn: "Clear Modern Standard Arabic" },
+  { value: 4, marker: "4", ar: "متقدم", en: "Advanced", hintAr: "تفاصيل وتراكيب أكثر", hintEn: "More detail and structure" },
+  { value: 5, marker: "5", ar: "كما ورد", en: "As written", hintAr: "من دون إعادة صياغة", hintEn: "No rewriting" },
 ];
 
 const resultViews: ResultView[] = ["clear", "english", "original"];
-const featureMarks = ["TXT", "PDF", "Aa"];
+const featureMarks = ["TXT", "PDF", "Aa", "POEM"];
 
 export default function Home() {
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>("ar");
@@ -83,6 +88,10 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [vocabularyOpen, setVocabularyOpen] = useState(false);
+  const [poetryText, setPoetryText] = useState("");
+  const [poetryResult, setPoetryResult] = useState<PoetryResult | null>(null);
+  const [poetryError, setPoetryError] = useState("");
+  const [isPoetryLoading, setIsPoetryLoading] = useState(false);
   const t = uiCopy[uiLanguage];
 
   const selectedAudience =
@@ -247,6 +256,57 @@ export default function Home() {
     });
   }
 
+  function savePoetryWord(word: PoetryResult["vocabulary"][number]) {
+    saveWord({
+      word: word.word,
+      diacritized_word: word.diacritized_word,
+      meaning: word.meaning,
+      root: "—",
+      synonym: "—",
+      english: word.english,
+      example: word.verse,
+      confidence: "medium",
+    });
+  }
+
+  function isPoetryWordSaved(word: PoetryResult["vocabulary"][number]): boolean {
+    return savedWords.some((item) => item.word === word.word && item.meaning === word.meaning);
+  }
+
+  async function handlePoetrySubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPoetryError("");
+    setPoetryResult(null);
+
+    if (poetryText.trim().length < 10) {
+      setPoetryError(t.poetry.error);
+      return;
+    }
+
+    setIsPoetryLoading(true);
+    try {
+      const response = await explainPoetry({
+        text: poetryText.trim(),
+        reader,
+        level: selectedLevel,
+      });
+      setPoetryResult(response);
+      persistProfile({
+        ...profile,
+        readings: profile.readings + 1,
+        preferredLevel: selectedLevel,
+      });
+    } catch (requestError) {
+      setPoetryError(
+        uiLanguage === "ar" && requestError instanceof Error
+          ? requestError.message
+          : t.errors.request,
+      );
+    } finally {
+      setIsPoetryLoading(false);
+    }
+  }
+
   function rateCheck() {
     if (checkRated) return;
     setCheckRated(true);
@@ -311,6 +371,9 @@ export default function Home() {
       setVocabularyOpen(true);
       return;
     }
+    if (index === 3) {
+      scrollToSection("poetry");
+    }
   }
 
   function loadDemoExample() {
@@ -324,6 +387,13 @@ export default function Home() {
     setActiveTool(null);
     setWordLens(null);
     window.setTimeout(() => document.getElementById("arabic-text")?.focus(), 0);
+  }
+
+  function loadPoetryExample() {
+    setPoetryText(poetryExample);
+    setPoetryResult(null);
+    setPoetryError("");
+    window.setTimeout(() => document.getElementById("poetry-text")?.focus(), 0);
   }
 
   return (
@@ -408,7 +478,7 @@ export default function Home() {
             <p className="hero-description mt-5 text-pretty text-base leading-8 text-ink/60 sm:text-lg">
               {t.hero.description}
             </p>
-            {uiLanguage === "ar" && <p className="mt-1 text-sm text-ink/40">{t.hero.secondary}</p>}
+            {t.hero.secondary && <p className="mt-1 text-sm text-ink/40">{t.hero.secondary}</p>}
             <a href="#workspace" className="hero-cta">
               <span>{t.hero.cta}</span><span aria-hidden="true">{uiLanguage === "ar" ? "←" : "→"}</span>
             </a>
@@ -429,7 +499,13 @@ export default function Home() {
                   className="feature-node"
                   style={{ animationDelay: `${140 + index * 55}ms` }}
                 >
-                  <span>{index === 0 && uiLanguage === "ar" ? "نص" : featureMarks[index]}</span>
+                  <span>
+                    {index === 0 && uiLanguage === "ar"
+                      ? "نص"
+                      : index === 3 && uiLanguage === "ar"
+                        ? "بيت"
+                        : featureMarks[index]}
+                  </span>
                   <span><strong>{feature.label}</strong><small>{feature.description}</small></span>
                   <span aria-hidden="true">{uiLanguage === "ar" ? "←" : "→"}</span>
                 </button>
@@ -493,11 +569,11 @@ export default function Home() {
                 <div className="learner-level-heading">
                   <span className="step-number">2</span>
                   <div>
-                    <h2>{uiLanguage === "ar" ? "ما مستوى العربية الآن؟" : "What Arabic level should Waddeh target?"}</h2>
+                    <h2>{uiLanguage === "ar" ? "ما المستوى المناسب؟" : "Which level fits best?"}</h2>
                     <p>
                       {uiLanguage === "ar"
-                        ? `اقتراح هذا القارئ: ${levelLabel(selectedAudience.level, uiLanguage)}. يمكنك تغييره.`
-                        : `Suggested for this reader: ${levelLabel(selectedAudience.level, uiLanguage)}. You can change it.`}
+                        ? `المستوى المقترح: ${levelLabel(selectedAudience.level, uiLanguage)}، ويمكنك تغييره.`
+                        : `Suggested level: ${levelLabel(selectedAudience.level, uiLanguage)}. You can change it.`}
                     </p>
                   </div>
                 </div>
@@ -607,7 +683,7 @@ export default function Home() {
                     className="secondary-button demo-example-button"
                   >
                     <span aria-hidden="true" className="demo-example-mark">✦</span>
-                    <span><strong>{t.actions.sample}</strong><small>{t.actions.sampleHint}</small></span>
+                    <span><strong>{t.actions.sample}</strong></span>
                   </button>
                 )}
               </div>
@@ -724,8 +800,8 @@ export default function Home() {
                   <button type="button" onClick={() => toggleTool("bridge")} className={`result-tool result-tool-primary ${activeTool === "bridge" ? "result-tool-active" : ""}`}>
                     <span className="tool-mark">↗</span>
                     <span>
-                      <strong>{uiLanguage === "ar" ? "Bridge Mode" : "Bridge Mode"}</strong>
-                      <small>{uiLanguage === "ar" ? "اقترب من النص الأصلي تدريجياً" : "Move toward the original gradually"}</small>
+                      <strong>{uiLanguage === "ar" ? "مسار التدرّج" : "Progressive Reading"}</strong>
+                      <small>{uiLanguage === "ar" ? "انتقل إلى صياغة أغنى خطوةً خطوة" : "Move to richer wording one step at a time"}</small>
                     </span>
                   </button>
                   <button type="button" onClick={toggleSpeech} className="result-tool">
@@ -761,7 +837,7 @@ export default function Home() {
                     {activeTool === "bridge" && (
                       <div>
                         <PanelHeading
-                          title={uiLanguage === "ar" ? "Bridge Mode: طريق العودة إلى الأصل" : "Bridge Mode: back toward the original"}
+                          title={uiLanguage === "ar" ? "مسار التدرّج في القراءة" : "Progressive Reading Path"}
                           description={uiLanguage === "ar" ? result.bridge.guidance : result.bridge.guidance_english}
                           closeLabel={t.wordLens.close}
                           onClose={() => setActiveTool(null)}
@@ -869,11 +945,11 @@ export default function Home() {
                     {activeTool === "trust" && (
                       <div>
                         <PanelHeading
-                          title={uiLanguage === "ar" ? "سلامة المعنى · Meaning Integrity" : "Meaning Integrity"}
+                          title={uiLanguage === "ar" ? "سلامة المعنى" : "Meaning Integrity"}
                           description={
                             uiLanguage === "ar"
-                              ? "فحص مستقل لا يدّعي اليقين الكامل: يراجع الأرقام والتواريخ والقوائم، ثم يضيف تحققاً دلالياً عند توفره."
-                              : "An independent check that does not claim certainty: deterministic facts first, semantic review when available."
+                              ? "نتأكد من بقاء الأرقام والتواريخ والشروط المهمة، وننبهك إذا احتاج شيء إلى المراجعة."
+                              : "We check that numbers, dates, and important conditions remain, and flag anything that needs review."
                           }
                           closeLabel={t.wordLens.close}
                           onClose={() => setActiveTool(null)}
@@ -893,6 +969,125 @@ export default function Home() {
                 </div>
               </div>
             </section>
+          )}
+        </section>
+
+        <section id="poetry" className="poetry-section scroll-mt-24">
+          <div className="poetry-intro">
+            <p>{t.poetry.kicker}</p>
+            <h2>{t.poetry.title}</h2>
+            <span>{t.poetry.description}</span>
+            <div className="poetry-promise" aria-hidden="true">
+              <i>01</i><b>{t.poetry.overview}</b>
+              <i>02</i><b>{t.poetry.linesTitle}</b>
+              <i>03</i><b>{t.poetry.vocabularyTitle}</b>
+            </div>
+          </div>
+
+          <form onSubmit={handlePoetrySubmit} className="poetry-form">
+            <div className="poetry-input-heading">
+              <label htmlFor="poetry-text">{t.poetry.inputLabel}</label>
+              <span>{poetryText.length} / 6000</span>
+            </div>
+            <textarea
+              id="poetry-text"
+              dir="rtl"
+              rows={7}
+              maxLength={6000}
+              value={poetryText}
+              onChange={(event) => setPoetryText(event.target.value)}
+              placeholder={t.poetry.placeholder}
+              aria-describedby="poetry-hint"
+            />
+            <small id="poetry-hint">{t.poetry.hint}</small>
+            {poetryError && <p role="alert" className="poetry-error">{poetryError}</p>}
+            <div className="poetry-actions">
+              <button type="submit" disabled={isPoetryLoading} className="primary-button">
+                <span>{isPoetryLoading ? t.poetry.loading : t.poetry.submit}</span>
+                {isPoetryLoading
+                  ? <span aria-hidden="true" className="loader" />
+                  : <span aria-hidden="true">{uiLanguage === "ar" ? "←" : "→"}</span>}
+              </button>
+              <button type="button" disabled={isPoetryLoading} onClick={loadPoetryExample} className="secondary-button">
+                <span aria-hidden="true">✦</span>
+                <strong>{t.poetry.sample}</strong>
+              </button>
+            </div>
+          </form>
+
+          {poetryResult && (
+            <div className="poetry-result" aria-live="polite">
+              <div className="poetry-result-heading">
+                <span aria-hidden="true">◇</span>
+                <div>
+                  <p>{t.poetry.resultReady}</p>
+                  <h3>{t.poetry.overview}</h3>
+                </div>
+              </div>
+
+              <div className="poetry-overview-grid">
+                <article dir={uiLanguage === "ar" ? "rtl" : "ltr"}>
+                  <small>{t.poetry.overview}</small>
+                  <p>{uiLanguage === "ar" ? poetryResult.overview : poetryResult.overview_english}</p>
+                </article>
+                <article dir="ltr">
+                  <small>{t.poetry.fullTranslation}</small>
+                  <p className="whitespace-pre-line">{poetryResult.english_translation}</p>
+                </article>
+              </div>
+
+              <div className="poetry-subheading">
+                <div>
+                  <h3>{t.poetry.linesTitle}</h3>
+                  <p>{t.poetry.linesDescription}</p>
+                </div>
+                <span>{poetryResult.lines.length}</span>
+              </div>
+              <div className="poetry-lines">
+                {poetryResult.lines.map((line, index) => (
+                  <article key={`${index}-${line.verse}`} className="poetry-line-card">
+                    <span className="poetry-line-number">{String(index + 1).padStart(2, "0")}</span>
+                    <blockquote dir="rtl">{line.verse}</blockquote>
+                    <div dir="rtl">
+                      <small>{t.poetry.clearMeaning}</small>
+                      <p>{line.clear_meaning}</p>
+                    </div>
+                    <div dir="ltr" className="poetry-translation">
+                      <small>{t.poetry.translation}</small>
+                      <p>{line.english_translation}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="poetry-subheading poetry-vocabulary-heading">
+                <div>
+                  <h3>{t.poetry.vocabularyTitle}</h3>
+                  <p>{t.poetry.vocabularyDescription}</p>
+                </div>
+                <span>Aa</span>
+              </div>
+              <div className="poetry-vocabulary-grid">
+                {poetryResult.vocabulary.map((word, index) => {
+                  const saved = isPoetryWordSaved(word);
+                  return (
+                    <article key={`${index}-${word.word}`} className="poetry-vocabulary-card">
+                      <strong dir="rtl">{word.diacritized_word}</strong>
+                      <p dir={uiLanguage === "ar" ? "rtl" : "ltr"}>
+                        {uiLanguage === "ar" ? word.meaning : word.english}
+                      </p>
+                      <small dir={uiLanguage === "ar" ? "ltr" : "rtl"}>
+                        {uiLanguage === "ar" ? word.english : word.meaning}
+                      </small>
+                      <blockquote dir="rtl"><b>{t.poetry.verseLabel}:</b> {word.verse}</blockquote>
+                      <button type="button" disabled={saved} onClick={() => savePoetryWord(word)}>
+                        {saved ? t.poetry.savedWord : t.poetry.saveWord}
+                      </button>
+                    </article>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </section>
 
@@ -945,8 +1140,8 @@ function JourneyRail({
   hasBridge: boolean;
 }) {
   const steps = uiLanguage === "ar"
-    ? ["أضف العربية", "افهم الصعوبة", "اختر المستوى", "اقرأ النص", "تعلّم الفروق", "افحص المعنى", "اقترب من الأصل"]
-    : ["Add Arabic", "Source difficulty", "Choose level", "Read adaptation", "Learn changes", "Meaning integrity", "Bridge to original"];
+    ? ["أضف النص", "اعرف صعوبته", "اختر المستوى", "اقرأ بوضوح", "تعلّم المفردات", "راجع المعنى", "تدرّج في القراءة"]
+    : ["Add the text", "Check difficulty", "Choose a level", "Read clearly", "Learn vocabulary", "Review meaning", "Read progressively"];
   const done = [hasSource, hasReadability, true, hasResult, hasResult, hasResult, hasBridge];
 
   return (
@@ -977,12 +1172,12 @@ function ReadabilityPanel({
   return (
     <section className="readability-panel" aria-live="polite">
       <div>
-        <p>{uiLanguage === "ar" ? "Source difficulty" : "Source difficulty"}</p>
+        <p>{uiLanguage === "ar" ? "صعوبة النص" : "Text difficulty"}</p>
         <h2>{levelLabelFromReadability(estimate.estimated_level, uiLanguage)}</h2>
         <span>
           {uiLanguage === "ar"
-            ? `المستوى المطلوب: ${levelLabel(targetLevel, uiLanguage)} · تقدير تجريبي`
-            : `Target level: ${levelLabel(targetLevel, uiLanguage)} · heuristic estimate`}
+            ? `المستوى المختار: ${levelLabel(targetLevel, uiLanguage)} · تقدير أولي`
+            : `Selected level: ${levelLabel(targetLevel, uiLanguage)} · initial estimate`}
         </span>
       </div>
       <div className="readability-metrics">
@@ -1052,14 +1247,14 @@ function IntegrityPanel({
     <div className="integrity-panel">
       <div className={`integrity-status integrity-status-${report.status}`}>
         <strong>{integrityStatusLabel(report.status, uiLanguage)}</strong>
-        <span>{uiLanguage === "ar" ? `الثقة: ${confidenceLabel(report.confidence, uiLanguage)}` : `Confidence: ${confidenceLabel(report.confidence, uiLanguage)}`}</span>
+        <span>{uiLanguage === "ar" ? `درجة المراجعة: ${confidenceLabel(report.confidence, uiLanguage)}` : `Review confidence: ${confidenceLabel(report.confidence, uiLanguage)}`}</span>
       </div>
       {checks.length > 0 && (
         <div className="integrity-checks">
           {checks.map((check) => (
             <span key={`${check.kind}-${check.value}`}>
               <b>{check.status === "preserved" ? "✓" : "!"}</b>
-              <small>{check.kind}: {check.value}</small>
+              <small>{integrityKindLabel(check.kind, uiLanguage)}: {check.value}</small>
             </span>
           ))}
         </div>
@@ -1105,7 +1300,7 @@ function levelLabelFromReadability(level: ReadabilityAssessment["heuristic_estim
   const labels = {
     beginner: uiLanguage === "ar" ? "مبتدئ" : "Beginner",
     easy: uiLanguage === "ar" ? "سهل" : "Easy",
-    standard: uiLanguage === "ar" ? "قياسي" : "Standard",
+    standard: uiLanguage === "ar" ? "متوسط" : "Intermediate",
     advanced: uiLanguage === "ar" ? "متقدم" : "Advanced",
   };
   return level ? labels[level] : uiLanguage === "ar" ? "غير محدد" : "Not available";
@@ -1118,6 +1313,30 @@ function confidenceLabel(confidence: string, uiLanguage: UiLanguage): string {
   return labels[confidence] ?? confidence;
 }
 
+function integrityKindLabel(kind: string, uiLanguage: UiLanguage): string {
+  if (uiLanguage === "en") {
+    const englishLabels: Record<string, string> = {
+      percentage: "Percentage",
+      currency: "Amount",
+      date: "Date",
+      time: "Time",
+      number: "Number",
+      list_count: "List items",
+    };
+    return englishLabels[kind] ?? kind;
+  }
+
+  const arabicLabels: Record<string, string> = {
+    percentage: "نسبة",
+    currency: "مبلغ",
+    date: "تاريخ",
+    time: "وقت",
+    number: "رقم",
+    list_count: "عناصر القائمة",
+  };
+  return arabicLabels[kind] ?? "تفصيل مهم";
+}
+
 function integrityStatusLabel(status: string, uiLanguage: UiLanguage): string {
   if (status === "needs_attention") {
     return uiLanguage === "ar" ? "يحتاج مراجعة" : "Needs attention";
@@ -1128,4 +1347,4 @@ function integrityStatusLabel(status: string, uiLanguage: UiLanguage): string {
   return uiLanguage === "ar" ? "لم تظهر مشكلة" : "No issue detected";
 }
 
-const tFallbackNoDetailsAr = "لم يجد الفحص الحتمي تفاصيل منفصلة لعرضها.";
+const tFallbackNoDetailsAr = "لم نجد أرقاماً أو مواعيد أو شروطاً تحتاج إلى مراجعة منفصلة.";

@@ -271,3 +271,45 @@ class WordExplanation(BaseModel):
     english: str = Field(description="A concise contextual English meaning.")
     example: str = Field(default="", description="A short Arabic example when useful.")
     confidence: ConfidenceLevel = ConfidenceLevel.medium
+
+
+class PoetryRequest(BaseModel):
+    text: str = Field(min_length=10, max_length=6_000)
+    reader: ReaderType = ReaderType.general_reader
+    level: SimplificationLevel = SimplificationLevel.easy
+
+    @field_validator("text")
+    @classmethod
+    def text_must_contain_arabic(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not any("\u0600" <= character <= "\u06ff" for character in cleaned):
+            raise ValueError("يجب أن يحتوي النص الشعري على حروف عربية.")
+        return cleaned
+
+
+class PoetryLineExplanation(BaseModel):
+    verse: str = Field(description="One verse or closely connected group of hemistichs.")
+    clear_meaning: str = Field(description="A short, natural explanation in clear Arabic.")
+    english_translation: str = Field(description="An accurate, natural English translation.")
+
+
+class PoetryVocabularyItem(BaseModel):
+    word: str = Field(description="A useful Arabic word or short expression from the poem.")
+    diacritized_word: str = Field(description="The selected word with helpful diacritics.")
+    meaning: str = Field(description="Its concise contextual meaning in clear Arabic.")
+    english: str = Field(description="Its concise contextual meaning in English.")
+    verse: str = Field(description="The verse in which the word appears.")
+
+
+class PoetryOutput(BaseModel):
+    overview: str = Field(description="A concise Arabic overview of the poem's central meaning.")
+    overview_english: str = Field(description="An accurate English version of the overview.")
+    english_translation: str = Field(description="A complete, natural English translation of the poem.")
+    lines: list[PoetryLineExplanation] = Field(min_length=1, max_length=24)
+    vocabulary: list[PoetryVocabularyItem] = Field(min_length=2, max_length=8)
+
+
+class PoetryResponse(PoetryOutput):
+    original_text: str
+    reader: ReaderType
+    level: SimplificationLevel

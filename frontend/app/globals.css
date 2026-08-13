@@ -530,6 +530,20 @@ button {
   color: white;
 }
 
+.journey-step-active {
+  transform: translateY(-1px);
+  border-color: rgba(14, 107, 92, 0.48);
+  background: white;
+  color: #17372f;
+  box-shadow: 0 9px 24px rgba(14, 107, 92, 0.11);
+}
+
+.journey-step-active b {
+  background: #41b78c;
+  color: #17372f;
+  box-shadow: 0 0 0 5px rgba(65, 183, 140, 0.12);
+}
+
 .learner-level-block {
   margin-top: 1.25rem;
   border-top: 1px solid rgba(23, 55, 47, 0.08);

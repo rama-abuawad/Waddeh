@@ -521,6 +521,8 @@ export default function Home() {
             hasReadability={Boolean(readabilityPreview ?? result?.readability)}
             hasResult={Boolean(result)}
             hasBridge={Boolean(result?.bridge?.levels?.length)}
+            isLoading={isLoading}
+            activeTool={activeTool}
           />
           <form onSubmit={handleSubmit} className="workspace-card">
             <div className="border-b border-ink/10 px-5 py-6 sm:px-8">
@@ -1132,26 +1134,51 @@ function JourneyRail({
   hasReadability,
   hasResult,
   hasBridge,
+  isLoading,
+  activeTool,
 }: {
   uiLanguage: UiLanguage;
   hasSource: boolean;
   hasReadability: boolean;
   hasResult: boolean;
   hasBridge: boolean;
+  isLoading: boolean;
+  activeTool: ResultTool | null;
 }) {
   const steps = uiLanguage === "ar"
     ? ["أضف النص", "اعرف صعوبته", "اختر المستوى", "اقرأ بوضوح", "تعلّم المفردات", "راجع المعنى", "تدرّج في القراءة"]
     : ["Add the text", "Check difficulty", "Choose a level", "Read clearly", "Learn vocabulary", "Review meaning", "Read progressively"];
-  const done = [hasSource, hasReadability, true, hasResult, hasResult, hasResult, hasBridge];
+
+  let activeIndex = 0;
+  if (hasResult) {
+    if (activeTool === "bridge" && hasBridge) activeIndex = 6;
+    else if (activeTool === "trust") activeIndex = 5;
+    else if (["learning", "changes", "check", "visual"].includes(activeTool ?? "")) activeIndex = 4;
+    else activeIndex = 3;
+  } else if (isLoading || hasReadability) {
+    activeIndex = hasReadability ? 3 : 1;
+  } else if (hasSource) {
+    activeIndex = 1;
+  }
 
   return (
     <nav className="journey-rail" aria-label={uiLanguage === "ar" ? "رحلة وضّح" : "Waddeh journey"}>
-      {steps.map((step, index) => (
-        <span key={step} className={done[index] ? "journey-step journey-step-done" : "journey-step"}>
-          <b>{index + 1}</b>
-          <small>{step}</small>
-        </span>
-      ))}
+      {steps.map((step, index) => {
+        const isDone = index < activeIndex;
+        const isActive = index === activeIndex;
+        const className = [
+          "journey-step",
+          isDone ? "journey-step-done" : "",
+          isActive ? "journey-step-active" : "",
+        ].filter(Boolean).join(" ");
+
+        return (
+          <span key={step} className={className} aria-current={isActive ? "step" : undefined}>
+            <b>{isDone ? "✓" : index + 1}</b>
+            <small>{step}</small>
+          </span>
+        );
+      })}
     </nav>
   );
 }

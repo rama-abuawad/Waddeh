@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useState } from "react";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
+  MeaningThreadKind,
   PoetryResult,
+  ReadingMemorySnapshot,
   ReadabilityAssessment,
   ReaderType,
   SimplificationResult,
@@ -18,21 +20,81 @@ import {
 import { UiLanguage, uiCopy } from "@/lib/ui-copy";
 
 type ResultView = "clear" | "english" | "original";
-type ResultTool = "bridge" | "changes" | "check" | "learning" | "trust" | "visual";
+type ResultTool = "bridge" | "threads" | "changes" | "check" | "learning" | "trust" | "visual";
 type SourceMode = "text" | "pdf";
+type WordMasteryStatus = "new" | "learning" | "mastered";
 
 interface SavedWord extends WordExplanation {
   id: string;
   savedAt: string;
+  mastery: WordMasteryStatus;
+  supportCount: number;
+  lastReviewedAt: string;
+  quizAttempts: number;
+  correctAnswers: number;
 }
 
 interface LearningProfile {
   readings: number;
   preferredLevel: number;
   highestBridgeLevel: number;
+  difficultySignals: Record<MeaningThreadKind, number>;
+  understoodChecks: number;
+  reviewChecks: number;
+  levelEvidence: boolean[];
+  lastLevelAdjustmentAt: number;
+  hasPlacementResult: boolean;
+  levelMode: "automatic" | "manual";
 }
 
-const initialProfile: LearningProfile = { readings: 0, preferredLevel: 2, highestBridgeLevel: 2 };
+const initialDifficultySignals: Record<MeaningThreadKind, number> = {
+  pronoun: 0,
+  actor: 0,
+  connector: 0,
+  negation: 0,
+  condition: 0,
+  reference: 0,
+};
+
+const initialProfile: LearningProfile = {
+  readings: 0,
+  preferredLevel: 2,
+  highestBridgeLevel: 2,
+  difficultySignals: initialDifficultySignals,
+  understoodChecks: 0,
+  reviewChecks: 0,
+  levelEvidence: [],
+  lastLevelAdjustmentAt: 0,
+  hasPlacementResult: false,
+  levelMode: "automatic",
+};
+
+const placementQuestions = [
+  {
+    text: "وصلت مريم إلى البيت قبل الغروب بقليل.",
+    questionAr: "متى وصلت مريم؟",
+    questionEn: "When did Maryam arrive?",
+    choicesAr: ["بعد منتصف الليل", "قبل الغروب", "في الصباح"],
+    choicesEn: ["After midnight", "Before sunset", "In the morning"],
+    correctIndex: 1,
+  },
+  {
+    text: "رغم أن الطريق كان طويلاً، واصل المسافر رحلته لأنه أراد الوصول قبل المساء.",
+    questionAr: "لماذا واصل المسافر رحلته؟",
+    questionEn: "Why did the traveller continue?",
+    choicesAr: ["لأن الطريق كان قصيراً", "لأنه أراد الوصول قبل المساء", "لأنه عاد إلى منزله"],
+    choicesEn: ["Because the road was short", "Because he wanted to arrive before evening", "Because he returned home"],
+    correctIndex: 1,
+  },
+  {
+    text: "لن يبدأ تنفيذ القرار إلا بعد أن تصادق عليه اللجنة، ما لم يطرأ ظرف يستدعي تأجيله.",
+    questionAr: "ما الشرط الأساسي لبدء تنفيذ القرار؟",
+    questionEn: "What is the main condition for implementing the decision?",
+    choicesAr: ["أن تصادق عليه اللجنة", "أن يُلغى الاجتماع", "أن يطلب أحد الأعضاء تأجيله"],
+    choicesEn: ["The committee must approve it", "The meeting must be cancelled", "A member must request a delay"],
+    correctIndex: 0,
+  },
+] as const;
 
 const exampleText =
   "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
@@ -74,8 +136,15 @@ export default function Home() {
   const [result, setResult] = useState<SimplificationResult | null>(null);
   const [resultView, setResultView] = useState<ResultView>("clear");
   const [activeTool, setActiveTool] = useState<ResultTool | null>(null);
-  const [showAnswer, setShowAnswer] = useState(false);
-  const [checkRated, setCheckRated] = useState(false);
+  const [showMoreTools, setShowMoreTools] = useState(false);
+  const [comprehensionChoice, setComprehensionChoice] = useState<number | null>(null);
+  const [wordQuizChoice, setWordQuizChoice] = useState<number | null>(null);
+  const [placementOpen, setPlacementOpen] = useState(false);
+  const [placementStep, setPlacementStep] = useState(0);
+  const [placementScore, setPlacementScore] = useState(0);
+  const [placementChoice, setPlacementChoice] = useState<number | null>(null);
+  const [manualLevelOpen, setManualLevelOpen] = useState(false);
+  const [openedMeaningThread, setOpenedMeaningThread] = useState<number | null>(null);
   const [showDiacritics, setShowDiacritics] = useState(false);
   const [wordLens, setWordLens] = useState<{
     word: string;
@@ -88,16 +157,20 @@ export default function Home() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [vocabularyOpen, setVocabularyOpen] = useState(false);
+  const [savedWordQuizOpen, setSavedWordQuizOpen] = useState(false);
+  const [savedWordQuizIndex, setSavedWordQuizIndex] = useState(0);
+  const [savedWordQuizChoice, setSavedWordQuizChoice] = useState<number | null>(null);
   const [poetryText, setPoetryText] = useState("");
   const [poetryResult, setPoetryResult] = useState<PoetryResult | null>(null);
   const [poetryError, setPoetryError] = useState("");
   const [isPoetryLoading, setIsPoetryLoading] = useState(false);
   const t = uiCopy[uiLanguage];
 
-  const selectedAudience =
-    audiences.find((audience) => audience.value === reader) ?? audiences[2];
   const isEnglishFirst = reader === "non_arabic_speaker";
   const selectedLevel = learnerLevel;
+  const masteredWordCount = savedWords.filter((word) => word.mastery === "mastered").length;
+  const learningWordCount = savedWords.length - masteredWordCount;
+  const savedVocabularyQuiz = buildSavedVocabularyQuiz(savedWords, savedWordQuizIndex);
 
   useEffect(() => {
     const restoreProgress = window.setTimeout(() => {
@@ -105,10 +178,29 @@ export default function Home() {
         const storedWords = window.localStorage.getItem("waddeh-vocabulary");
         const storedProfile = window.localStorage.getItem("waddeh-learning-profile");
         const storedLanguage = window.localStorage.getItem("waddeh-language");
-        if (storedWords) setSavedWords(JSON.parse(storedWords) as SavedWord[]);
+        if (storedWords) {
+          const parsedWords = JSON.parse(storedWords) as Array<Partial<SavedWord> & WordExplanation>;
+          setSavedWords(parsedWords.map((word) => ({
+            ...word,
+            id: word.id ?? crypto.randomUUID(),
+            savedAt: word.savedAt ?? new Date().toISOString(),
+            mastery: word.mastery ?? "new",
+            supportCount: word.supportCount ?? 1,
+            lastReviewedAt: word.lastReviewedAt ?? word.savedAt ?? new Date().toISOString(),
+            quizAttempts: word.quizAttempts ?? 0,
+            correctAnswers: word.correctAnswers ?? 0,
+          })));
+        }
         if (storedProfile) {
           const parsedProfile = JSON.parse(storedProfile) as Partial<LearningProfile>;
-          const restoredProfile = { ...initialProfile, ...parsedProfile };
+          const restoredProfile = {
+            ...initialProfile,
+            ...parsedProfile,
+            difficultySignals: {
+              ...initialDifficultySignals,
+              ...parsedProfile.difficultySignals,
+            },
+          };
           setProfile(restoredProfile);
           setLearnerLevel(restoredProfile.preferredLevel);
         }
@@ -160,8 +252,10 @@ export default function Home() {
     setResult(null);
     setReadabilityPreview(null);
     setActiveTool(null);
-    setShowAnswer(false);
-    setCheckRated(false);
+    setShowMoreTools(false);
+    setComprehensionChoice(null);
+    setWordQuizChoice(null);
+    setOpenedMeaningThread(null);
     setShowDiacritics(false);
     setWordLens(null);
     setCopied(false);
@@ -179,17 +273,23 @@ export default function Home() {
 
     setIsLoading(true);
     try {
+      const readingMemory = buildReadingMemorySnapshot(savedWords, profile);
       if (sourceMode === "text") {
         const assessment = await assessReadability({ text: text.trim() });
         setReadabilityPreview(assessment);
       }
       const response = sourceMode === "pdf" && pdfFile
-        ? await simplifyPdf(pdfFile, reader, selectedLevel)
-        : await simplifyText({ text: text.trim(), reader, level: selectedLevel });
+        ? await simplifyPdf(pdfFile, reader, selectedLevel, readingMemory)
+        : await simplifyText({
+            text: text.trim(),
+            reader,
+            level: selectedLevel,
+            reading_memory: readingMemory,
+          });
       setResult(response);
       setReadabilityPreview(response.readability);
       setResultView(uiLanguage === "en" || isEnglishFirst ? "english" : "clear");
-      setActiveTool("bridge");
+      setActiveTool(null);
       persistProfile({
         ...profile,
         readings: profile.readings + 1,
@@ -236,11 +336,51 @@ export default function Home() {
   }
 
   function saveWord(word: WordExplanation) {
-    if (savedWords.some((item) => item.word === word.word && item.meaning === word.meaning)) return;
+    const existing = savedWords.find((item) => item.word === word.word && item.meaning === word.meaning);
+    if (existing) {
+      persistWords(savedWords.map((item) => item.id === existing.id
+        ? {
+            ...item,
+            supportCount: item.supportCount + 1,
+            mastery: masteryFromEvidence(
+              item.quizAttempts,
+              item.correctAnswers,
+              item.supportCount + 1,
+            ),
+            lastReviewedAt: new Date().toISOString(),
+          }
+        : item));
+      return;
+    }
     persistWords([
-      { ...word, id: crypto.randomUUID(), savedAt: new Date().toISOString() },
+      {
+        ...word,
+        id: crypto.randomUUID(),
+        savedAt: new Date().toISOString(),
+        mastery: "new",
+        supportCount: 1,
+        lastReviewedAt: new Date().toISOString(),
+        quizAttempts: 0,
+        correctAnswers: 0,
+      },
       ...savedWords,
     ]);
+  }
+
+  function toggleMeaningThread(index: number, kind: MeaningThreadKind) {
+    if (openedMeaningThread === index) {
+      setOpenedMeaningThread(null);
+      return;
+    }
+
+    setOpenedMeaningThread(index);
+    persistProfile({
+      ...profile,
+      difficultySignals: {
+        ...profile.difficultySignals,
+        [kind]: Math.min(profile.difficultySignals[kind] + 1, 99),
+      },
+    });
   }
 
   function saveLearningCard(card: SimplificationResult["learning_cards"][number]) {
@@ -307,14 +447,145 @@ export default function Home() {
     }
   }
 
-  function rateCheck() {
-    if (checkRated) return;
-    setCheckRated(true);
+  function recordComprehensionChoice(choiceIndex: number) {
+    if (!result || comprehensionChoice !== null) return;
+    const correct = choiceIndex === result.comprehension_check.correct_choice_index;
+    const levelEvidence = [...profile.levelEvidence, correct];
+    let nextLevel = learnerLevel;
+    let lastLevelAdjustmentAt = profile.lastLevelAdjustmentAt;
+    const evidenceSinceAdjustment = levelEvidence.slice(lastLevelAdjustmentAt);
+
+    if (profile.levelMode === "automatic" && evidenceSinceAdjustment.length >= 3) {
+      const accuracy = evidenceSinceAdjustment.filter(Boolean).length / evidenceSinceAdjustment.length;
+      if (accuracy >= 0.8) nextLevel = Math.min(4, learnerLevel + 1);
+      if (accuracy <= 0.34) nextLevel = Math.max(1, learnerLevel - 1);
+      lastLevelAdjustmentAt = levelEvidence.length;
+    }
+
+    setComprehensionChoice(choiceIndex);
+    setLearnerLevel(nextLevel);
+    persistProfile({
+      ...profile,
+      preferredLevel: nextLevel,
+      understoodChecks: profile.understoodChecks + (correct ? 1 : 0),
+      reviewChecks: profile.reviewChecks + (correct ? 0 : 1),
+      levelEvidence,
+      lastLevelAdjustmentAt,
+    });
+  }
+
+  function recordWordQuiz(choiceIndex: number) {
+    if (!result || wordQuizChoice !== null || result.learning_cards.length < 2) return;
+    const quizIndex = profile.readings % result.learning_cards.length;
+    const card = result.learning_cards[quizIndex];
+    const correct = choiceIndex === quizIndex;
+    const existing = savedWords.find((word) => word.word === card.term);
+    const attempts = (existing?.quizAttempts ?? 0) + 1;
+    const correctAnswers = (existing?.correctAnswers ?? 0) + (correct ? 1 : 0);
+    const supportCount = existing?.supportCount ?? 1;
+    const mastery = masteryFromEvidence(attempts, correctAnswers, supportCount);
+
+    const quizWord: SavedWord = {
+      word: card.term,
+      diacritized_word: existing?.diacritized_word ?? card.term,
+      meaning: card.simple_meaning,
+      root: existing?.root ?? "—",
+      synonym: existing?.synonym ?? "—",
+      english: card.english_meaning,
+      example: existing?.example ?? "",
+      confidence: existing?.confidence ?? "medium",
+      id: existing?.id ?? crypto.randomUUID(),
+      savedAt: existing?.savedAt ?? new Date().toISOString(),
+      mastery,
+      supportCount,
+      lastReviewedAt: new Date().toISOString(),
+      quizAttempts: attempts,
+      correctAnswers,
+    };
+
+    persistWords(existing
+      ? savedWords.map((word) => word.id === existing.id ? quizWord : word)
+      : [quizWord, ...savedWords]);
+    setWordQuizChoice(choiceIndex);
+  }
+
+  function recordSavedVocabularyQuiz(choiceIndex: number) {
+    if (!savedVocabularyQuiz || savedWordQuizChoice !== null) return;
+    const correct = choiceIndex === savedVocabularyQuiz.correctIndex;
+    const target = savedVocabularyQuiz.target;
+    const attempts = target.quizAttempts + 1;
+    const correctAnswers = target.correctAnswers + (correct ? 1 : 0);
+    const reviewedWord: SavedWord = {
+      ...target,
+      mastery: masteryFromEvidence(attempts, correctAnswers, target.supportCount),
+      quizAttempts: attempts,
+      correctAnswers,
+      lastReviewedAt: new Date().toISOString(),
+    };
+
+    persistWords(savedWords.map((word) => word.id === target.id ? reviewedWord : word));
+    setSavedWordQuizChoice(choiceIndex);
+  }
+
+  function continueSavedVocabularyQuiz() {
+    setSavedWordQuizIndex((current) => current + 1);
+    setSavedWordQuizChoice(null);
+  }
+
+  function continuePlacementCheck() {
+    if (placementChoice === null) return;
+    const question = placementQuestions[placementStep];
+    const nextScore = placementScore + (placementChoice === question.correctIndex ? 1 : 0);
+
+    if (placementStep === placementQuestions.length - 1) {
+      const nextLevel = placementLevelFromScore(nextScore);
+      setLearnerLevel(nextLevel);
+      persistProfile({
+        ...profile,
+        preferredLevel: nextLevel,
+        hasPlacementResult: true,
+        levelMode: "automatic",
+        levelEvidence: [],
+        lastLevelAdjustmentAt: 0,
+      });
+      setPlacementOpen(false);
+      setPlacementStep(0);
+      setPlacementScore(0);
+      setPlacementChoice(null);
+      return;
+    }
+
+    setPlacementScore(nextScore);
+    setPlacementStep((current) => current + 1);
+    setPlacementChoice(null);
+  }
+
+  function startPlacementCheck() {
+    setPlacementStep(0);
+    setPlacementScore(0);
+    setPlacementChoice(null);
+    setManualLevelOpen(false);
+    setPlacementOpen(true);
+  }
+
+  function chooseLevelManually(level: number) {
+    setLearnerLevel(level);
+    persistProfile({
+      ...profile,
+      preferredLevel: level,
+      hasPlacementResult: false,
+      levelMode: "manual",
+      levelEvidence: [],
+      lastLevelAdjustmentAt: 0,
+    });
+    setResult(null);
+    setReadabilityPreview(null);
+    setPlacementOpen(false);
+    setManualLevelOpen(false);
   }
 
   function toggleTool(tool: ResultTool) {
     setActiveTool((current) => (current === tool ? null : tool));
-    if (tool !== "check") setShowAnswer(false);
   }
 
   function toggleSpeech() {
@@ -348,6 +619,10 @@ export default function Home() {
     setReadabilityPreview(null);
     setWordLens(null);
     setActiveTool(null);
+    setOpenedMeaningThread(null);
+    setShowMoreTools(false);
+    setComprehensionChoice(null);
+    setWordQuizChoice(null);
   }
 
   function scrollToSection(id: string) {
@@ -380,7 +655,7 @@ export default function Home() {
     setSourceMode("text");
     setText(exampleText);
     setReader("general_reader");
-    setLearnerLevel(2);
+    if (!profile.hasPlacementResult) setLearnerLevel(2);
     setResult(null);
     setReadabilityPreview(null);
     setError("");
@@ -406,7 +681,7 @@ export default function Home() {
       <div className="ambient ambient-two" aria-hidden="true" />
 
       <header className="sticky top-0 z-30 border-b border-ink/10 bg-paper/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <a href="#workspace" className="flex items-center gap-3" aria-label={t.homeLabel}>
             <span className="grid size-11 place-items-center rounded-2xl bg-teal text-xl font-bold text-white shadow-lg shadow-teal/20">{uiLanguage === "ar" ? "و" : "W"}</span>
             <span>
@@ -415,6 +690,9 @@ export default function Home() {
             </span>
           </a>
           <div className="header-actions">
+            <button type="button" className="about-header-button" onClick={() => scrollToSection("about")}>
+              {uiLanguage === "ar" ? "عن وضّح" : "About"}
+            </button>
             <button type="button" className="vocabulary-header-button" onClick={() => setVocabularyOpen(true)}>
               <span className="vocabulary-label">{t.vocabularyButton}</span>
               <span aria-label={t.tools.savedCount(savedWords.length)}>{savedWords.length}</span>
@@ -444,15 +722,116 @@ export default function Home() {
               </div>
               <button autoFocus type="button" onClick={() => setVocabularyOpen(false)} aria-label={t.wordLens.close}>×</button>
             </div>
+            <div className="reading-memory-summary" aria-label={uiLanguage === "ar" ? "ملخص مفرداتي" : "My vocabulary summary"}>
+              <span><strong>{savedWords.length}</strong><small>{uiLanguage === "ar" ? "كلمات" : "Words"}</small></span>
+              <span><strong>{learningWordCount}</strong><small>{uiLanguage === "ar" ? "قيد التعلّم" : "Learning"}</small></span>
+              <span><strong>{masteredWordCount}</strong><small>{uiLanguage === "ar" ? "أتقنتها" : "Mastered"}</small></span>
+            </div>
+            {savedWords.length > 0 && (
+              <section className={`saved-words-quiz ${savedWordQuizOpen ? "open" : ""}`}>
+                <div className="saved-words-quiz-heading">
+                  <div>
+                    <p>{uiLanguage === "ar" ? "مراجعة اختيارية" : "Optional review"}</p>
+                    <h3>{uiLanguage === "ar" ? "هل ما زلت تتذكّر الكلمات؟" : "Do you still remember the words?"}</h3>
+                    <span>
+                      {savedWords.length < 2
+                        ? uiLanguage === "ar" ? "احفظ كلمة أخرى ليبدأ الاختبار." : "Save one more word to start the quiz."
+                        : uiLanguage === "ar" ? "أسئلة قصيرة تحدّث درجة إتقانك من إجاباتك." : "Short questions update mastery from your answers."}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={savedWords.length < 2}
+                    onClick={() => {
+                      setSavedWordQuizOpen((current) => !current);
+                      setSavedWordQuizChoice(null);
+                    }}
+                  >
+                    {savedWordQuizOpen
+                      ? uiLanguage === "ar" ? "إنهاء" : "Finish"
+                      : uiLanguage === "ar" ? "اختبر نفسي" : "Test myself"}
+                  </button>
+                </div>
+
+                {savedWordQuizOpen && savedVocabularyQuiz && (
+                  <div className="saved-words-quiz-body" aria-live="polite">
+                    <small>
+                      {uiLanguage === "ar"
+                        ? `الكلمة ${(savedWordQuizIndex % savedWords.length) + 1} من ${savedWords.length}`
+                        : `Word ${(savedWordQuizIndex % savedWords.length) + 1} of ${savedWords.length}`}
+                    </small>
+                    <h4 dir="rtl">
+                      {uiLanguage === "ar"
+                        ? `ما معنى «${savedVocabularyQuiz.target.diacritized_word}»؟`
+                        : `What does “${savedVocabularyQuiz.target.diacritized_word}” mean?`}
+                    </h4>
+                    <div className="saved-words-quiz-choices">
+                      {savedVocabularyQuiz.options.map((option, index) => {
+                        const answered = savedWordQuizChoice !== null;
+                        const correct = answered && index === savedVocabularyQuiz.correctIndex;
+                        const selected = savedWordQuizChoice === index;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            disabled={answered}
+                            onClick={() => recordSavedVocabularyQuiz(index)}
+                            className={`${selected ? "selected" : ""} ${correct ? "correct" : ""}`}
+                          >
+                            <span>{String.fromCharCode(65 + index)}</span>
+                            <p>{uiLanguage === "ar" ? option.meaning : option.english || option.meaning}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {savedWordQuizChoice !== null && (
+                      <div className="saved-words-quiz-feedback">
+                        <div>
+                          <strong>
+                            {savedWordQuizChoice === savedVocabularyQuiz.correctIndex
+                              ? uiLanguage === "ar" ? "أحسنت، ما زالت في ذاكرتك." : "Correct—you remembered it."
+                              : uiLanguage === "ar" ? "لنثبّتها مرة أخرى." : "Let’s reinforce it once more."}
+                          </strong>
+                          <p>{uiLanguage === "ar" ? savedVocabularyQuiz.target.meaning : savedVocabularyQuiz.target.english || savedVocabularyQuiz.target.meaning}</p>
+                        </div>
+                        <button type="button" onClick={continueSavedVocabularyQuiz}>
+                          {uiLanguage === "ar" ? "الكلمة التالية" : "Next word"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
             {savedWords.length > 0 ? (
               <div className="drawer-word-list">
                 {savedWords.map((word) => (
                   <article key={word.id}>
-                    <div>
+                    <div className="drawer-word-copy">
                       <strong dir="rtl">{word.diacritized_word}</strong>
                       <p>{uiLanguage === "en" ? word.english : word.meaning}</p>
                     </div>
-                    <button type="button" onClick={() => persistWords(savedWords.filter((item) => item.id !== word.id))} aria-label={t.panels.removeWord(word.word)}>×</button>
+                    <div className="drawer-word-actions">
+                      <span className={`mastery-badge mastery-${word.mastery}`}>
+                        <strong>{masteryLabel(word.mastery, uiLanguage)}</strong>
+                        <small>
+                          {word.quizAttempts > 0
+                            ? uiLanguage === "ar"
+                              ? `${word.correctAnswers} من ${word.quizAttempts} صحيحة`
+                              : `${word.correctAnswers}/${word.quizAttempts} correct`
+                            : uiLanguage === "ar" ? "بانتظار أول اختبار" : "Awaiting first check"}
+                        </small>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          persistWords(savedWords.filter((item) => item.id !== word.id));
+                          setSavedWordQuizOpen(false);
+                          setSavedWordQuizChoice(null);
+                        }}
+                        aria-label={t.panels.removeWord(word.word)}
+                      >×</button>
+                    </div>
                   </article>
                 ))}
               </div>
@@ -468,7 +847,7 @@ export default function Home() {
         </div>
       )}
 
-      <div key={uiLanguage} className="page-content relative z-10 mx-auto max-w-6xl px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
+      <div key={uiLanguage} className="page-content relative z-10 mx-auto max-w-[90rem] px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
         <section className="hero-section">
           <div className="hero-copy">
             <p className="hero-kicker">{t.hero.eyebrow}</p>
@@ -514,7 +893,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="workspace" className="mx-auto mt-10 max-w-4xl scroll-mt-6">
+        <section id="workspace" className="mx-auto mt-10 max-w-7xl scroll-mt-6">
           <JourneyRail
             uiLanguage={uiLanguage}
             hasSource={sourceMode === "pdf" ? Boolean(pdfFile) : text.trim().length >= 20}
@@ -545,7 +924,7 @@ export default function Home() {
                       aria-pressed={active}
                       onClick={() => {
                         setReader(audience.value);
-                        setLearnerLevel(audience.level);
+                        if (profile.levelMode === "automatic" && !profile.hasPlacementResult) setLearnerLevel(audience.level);
                         setResult(null);
                         setReadabilityPreview(null);
                         setError("");
@@ -571,36 +950,122 @@ export default function Home() {
                 <div className="learner-level-heading">
                   <span className="step-number">2</span>
                   <div>
-                    <h2>{uiLanguage === "ar" ? "ما المستوى المناسب؟" : "Which level fits best?"}</h2>
+                    <h2>{uiLanguage === "ar" ? "اختر كيف نحدّد نقطة البداية" : "Choose how to set your starting point"}</h2>
                     <p>
                       {uiLanguage === "ar"
-                        ? `المستوى المقترح: ${levelLabel(selectedAudience.level, uiLanguage)}، ويمكنك تغييره.`
-                        : `Suggested level: ${levelLabel(selectedAudience.level, uiLanguage)}. You can change it.`}
+                        ? "اختر مستواك بنفسك، أو دع «وضّح» يحدّده باختبار قصير."
+                        : "Choose your own level, or let Waddeh find it with a short check."}
                     </p>
                   </div>
                 </div>
-                <div className="learner-level-grid" role="radiogroup" aria-label={uiLanguage === "ar" ? "مستوى المتعلم" : "Learner level"}>
-                  {learnerLevels.map((level) => {
-                    const active = learnerLevel === level.value;
-                    return (
-                      <button
-                        key={level.value}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => {
-                          setLearnerLevel(level.value);
-                          setResult(null);
-                          setReadabilityPreview(null);
-                        }}
-                        className={`level-chip ${active ? "level-chip-active" : ""}`}
-                      >
-                        <span>{level.marker}</span>
-                        <strong>{uiLanguage === "ar" ? level.ar : level.en}</strong>
-                        <small>{uiLanguage === "ar" ? level.hintAr : level.hintEn}</small>
-                      </button>
-                    );
-                  })}
+                <div className="adaptive-level-card">
+                  <span>{learnerLevel}</span>
+                  <div>
+                    <small>{uiLanguage === "ar" ? "مستواك الحالي" : "Current level"}</small>
+                    <strong>{levelLabel(learnerLevel, uiLanguage)}</strong>
+                    <p>
+                      {profile.levelMode === "manual"
+                        ? uiLanguage === "ar"
+                          ? "اخترته بنفسك؛ سنسجّل نتائج اختباراتك من دون تغييره تلقائياً."
+                          : "You chose it; quizzes are recorded without changing it automatically."
+                        : profile.hasPlacementResult
+                          ? uiLanguage === "ar"
+                            ? "حُدّد من إجاباتك، وسيتغيّر تدريجياً مع اختبارات الفهم."
+                            : "Based on your answers and adjusted gradually through comprehension checks."
+                          : uiLanguage === "ar"
+                            ? "هذا تقدير مبدئي إلى أن تجري الاختبار القصير."
+                            : "This is an initial estimate until you take the short check."}
+                    </p>
+                  </div>
+                  <div className="adaptive-level-actions">
+                    <button
+                      type="button"
+                      className={profile.levelMode === "automatic" ? "active" : ""}
+                      onClick={startPlacementCheck}
+                    >
+                      <strong>{uiLanguage === "ar" ? "دع وضّح يحدّد مستواي" : "Let Waddeh find my level"}</strong>
+                      <small>{uiLanguage === "ar" ? "اختبار من 3 أسئلة" : "A 3-question check"}</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={profile.levelMode === "manual" ? "active" : ""}
+                      onClick={() => {
+                        setPlacementOpen(false);
+                        setManualLevelOpen((current) => !current);
+                      }}
+                    >
+                      <strong>{uiLanguage === "ar" ? "أختار مستواي بنفسي" : "Choose my level"}</strong>
+                      <small>{uiLanguage === "ar" ? "يبقى ثابتاً حتى تغيّره" : "Stays fixed until you change it"}</small>
+                    </button>
+                  </div>
                 </div>
+
+                {manualLevelOpen && (
+                  <div className="manual-level-picker" aria-live="polite">
+                    <p>{uiLanguage === "ar" ? "اختر الصياغة الأقرب لك الآن" : "Choose the wording that suits you now"}</p>
+                    <div className="learner-level-grid" role="radiogroup" aria-label={uiLanguage === "ar" ? "اختيار المستوى" : "Choose level"}>
+                      {learnerLevels.map((level) => {
+                        const active = profile.levelMode === "manual" && learnerLevel === level.value;
+                        return (
+                          <button
+                            key={level.value}
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            onClick={() => chooseLevelManually(level.value)}
+                            className={`level-chip ${active ? "level-chip-active" : ""}`}
+                          >
+                            <span>{level.marker}</span>
+                            <strong>{uiLanguage === "ar" ? level.ar : level.en}</strong>
+                            <small>{uiLanguage === "ar" ? level.hintAr : level.hintEn}</small>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {placementOpen && (
+                  <div className="placement-check" aria-live="polite">
+                    <div className="placement-progress">
+                      <span>{uiLanguage === "ar" ? `السؤال ${placementStep + 1} من ${placementQuestions.length}` : `Question ${placementStep + 1} of ${placementQuestions.length}`}</span>
+                      <i style={{ width: `${((placementStep + 1) / placementQuestions.length) * 100}%` }} />
+                    </div>
+                    <blockquote dir="rtl">{placementQuestions[placementStep].text}</blockquote>
+                    <h3>{uiLanguage === "ar" ? placementQuestions[placementStep].questionAr : placementQuestions[placementStep].questionEn}</h3>
+                    <div className="placement-choices">
+                      {(uiLanguage === "ar" ? placementQuestions[placementStep].choicesAr : placementQuestions[placementStep].choicesEn).map((choice, index) => {
+                        const selected = placementChoice === index;
+                        const correct = placementChoice !== null && index === placementQuestions[placementStep].correctIndex;
+                        return (
+                          <button
+                            key={choice}
+                            type="button"
+                            disabled={placementChoice !== null}
+                            onClick={() => setPlacementChoice(index)}
+                            className={`${selected ? "selected" : ""} ${correct ? "correct" : ""}`}
+                          >
+                            <span>{String.fromCharCode(65 + index)}</span>{choice}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {placementChoice !== null && (
+                      <div className="placement-feedback">
+                        <p>
+                          {placementChoice === placementQuestions[placementStep].correctIndex
+                            ? uiLanguage === "ar" ? "إجابة صحيحة." : "Correct."
+                            : uiLanguage === "ar" ? "لا بأس، سنستخدم هذه الإجابة لاختيار البداية الأنسب." : "That’s okay—this helps choose a better starting point."}
+                        </p>
+                        <button type="button" onClick={continuePlacementCheck}>
+                          {placementStep === placementQuestions.length - 1
+                            ? uiLanguage === "ar" ? "اعرض مستواي" : "Show my level"
+                            : uiLanguage === "ar" ? "السؤال التالي" : "Next question"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -798,41 +1263,69 @@ export default function Home() {
 
               <div id="result-tools" className="result-tools-section scroll-mt-6">
                 <p className="mb-3 text-xs font-black text-ink/40">{t.tools.intro}</p>
-                <div className="tool-grid">
+                <div className="primary-tool-grid">
+                  <button type="button" onClick={() => toggleTool("check")} className={`result-tool result-tool-primary ${activeTool === "check" ? "result-tool-active" : ""}`}>
+                    <span className="tool-mark">{uiLanguage === "ar" ? "؟" : "?"}</span>
+                    <span><strong>{t.tools.check}</strong><small>{uiLanguage === "ar" ? "سؤال قصير يؤكد فهمك" : "A short question to check understanding"}</small></span>
+                  </button>
+                  {result.meaning_threads.length > 0 && (
+                    <button type="button" onClick={() => toggleTool("threads")} className={`result-tool result-tool-primary result-tool-thread ${activeTool === "threads" ? "result-tool-active" : ""}`}>
+                      <span className="tool-mark">⌁</span>
+                      <span>
+                        <strong>{uiLanguage === "ar" ? "خيوط المعنى" : "Meaning Threads"}</strong>
+                        <small>{uiLanguage === "ar" ? "تتبّع الضمائر والعلاقات داخل الجملة" : "Follow pronouns and relationships inside the sentence"}</small>
+                      </span>
+                    </button>
+                  )}
                   <button type="button" onClick={() => toggleTool("bridge")} className={`result-tool result-tool-primary ${activeTool === "bridge" ? "result-tool-active" : ""}`}>
                     <span className="tool-mark">↗</span>
                     <span>
-                      <strong>{uiLanguage === "ar" ? "مسار التدرّج" : "Progressive Reading"}</strong>
-                      <small>{uiLanguage === "ar" ? "انتقل إلى صياغة أغنى خطوةً خطوة" : "Move to richer wording one step at a time"}</small>
+                      <strong>{uiLanguage === "ar" ? "مسار التدرّج" : "Progressive path"}</strong>
+                      <small>{uiLanguage === "ar" ? "اقترب من صياغة المصدر خطوةً خطوة" : "Move toward the source wording step by step"}</small>
                     </span>
                   </button>
-                  <button type="button" onClick={toggleSpeech} className="result-tool">
-                    <span className="tool-mark">{isSpeaking ? "Ⅱ" : "▶"}</span>
-                    <span><strong>{isSpeaking ? t.tools.stopSpeech : t.tools.speech}</strong><small>{t.tools.speechDescription}</small></span>
-                  </button>
-                  <button type="button" onClick={() => toggleTool("learning")} className={`result-tool ${activeTool === "learning" ? "result-tool-active" : ""}`}>
-                    <span className="tool-mark">{uiLanguage === "ar" ? "أ" : "Aa"}</span>
-                    <span><strong>{t.tools.learning}</strong><small>{t.tools.savedCount(savedWords.length)}</small></span>
-                  </button>
-                  <button type="button" onClick={() => toggleTool("changes")} className={`result-tool ${activeTool === "changes" ? "result-tool-active" : ""}`}>
-                    <span className="tool-mark">⇄</span>
-                    <span><strong>{t.tools.changes}</strong><small>{t.tools.changesDescription}</small></span>
-                  </button>
-                  <button type="button" onClick={() => toggleTool("check")} className={`result-tool ${activeTool === "check" ? "result-tool-active" : ""}`}>
-                    <span className="tool-mark">{uiLanguage === "ar" ? "؟" : "?"}</span>
-                    <span><strong>{t.tools.check}</strong><small>{t.tools.checkDescription}</small></span>
-                  </button>
-                  {result.visual_steps.length > 0 && (
-                    <button type="button" onClick={() => toggleTool("visual")} className={`result-tool ${activeTool === "visual" ? "result-tool-active" : ""}`}>
-                      <span className="tool-mark">↳</span>
-                      <span><strong>{t.tools.visual}</strong><small>{t.tools.visualDescription}</small></span>
-                    </button>
-                  )}
-                  <button type="button" onClick={() => toggleTool("trust")} className={`result-tool ${activeTool === "trust" ? "result-tool-active" : ""}`}>
-                    <span className="tool-mark tool-mark-trust">✓</span>
-                    <span><strong>{t.tools.trust}</strong><small>{t.tools.trustDescription}</small></span>
-                  </button>
                 </div>
+
+                <button
+                  type="button"
+                  className="more-tools-toggle"
+                  aria-expanded={showMoreTools}
+                  onClick={() => {
+                    const next = !showMoreTools;
+                    setShowMoreTools(next);
+                    if (!next && ["learning", "changes", "visual", "trust"].includes(activeTool ?? "")) setActiveTool(null);
+                  }}
+                >
+                  <span>{uiLanguage === "ar" ? "خيارات أخرى عند الحاجة" : "More options when needed"}</span>
+                  <b aria-hidden="true">{showMoreTools ? "−" : "+"}</b>
+                </button>
+
+                {showMoreTools && (
+                  <div className="secondary-tool-grid">
+                    <button type="button" onClick={toggleSpeech} className="result-tool">
+                      <span className="tool-mark">{isSpeaking ? "Ⅱ" : "▶"}</span>
+                      <span><strong>{isSpeaking ? t.tools.stopSpeech : t.tools.speech}</strong><small>{t.tools.speechDescription}</small></span>
+                    </button>
+                    <button type="button" onClick={() => toggleTool("learning")} className={`result-tool ${activeTool === "learning" ? "result-tool-active" : ""}`}>
+                      <span className="tool-mark">{uiLanguage === "ar" ? "أ" : "Aa"}</span>
+                      <span><strong>{t.tools.learning}</strong><small>{t.tools.savedCount(savedWords.length)}</small></span>
+                    </button>
+                    <button type="button" onClick={() => toggleTool("changes")} className={`result-tool ${activeTool === "changes" ? "result-tool-active" : ""}`}>
+                      <span className="tool-mark">⇄</span>
+                      <span><strong>{t.tools.changes}</strong><small>{t.tools.changesDescription}</small></span>
+                    </button>
+                    {result.visual_steps.length > 0 && (
+                      <button type="button" onClick={() => toggleTool("visual")} className={`result-tool ${activeTool === "visual" ? "result-tool-active" : ""}`}>
+                        <span className="tool-mark">↳</span>
+                        <span><strong>{t.tools.visual}</strong><small>{t.tools.visualDescription}</small></span>
+                      </button>
+                    )}
+                    <button type="button" onClick={() => toggleTool("trust")} className={`result-tool ${activeTool === "trust" ? "result-tool-active" : ""}`}>
+                      <span className="tool-mark tool-mark-trust">✓</span>
+                      <span><strong>{t.tools.trust}</strong><small>{t.tools.trustDescription}</small></span>
+                    </button>
+                  </div>
+                )}
 
                 {activeTool && (
                   <div className="tool-panel">
@@ -848,6 +1341,27 @@ export default function Home() {
                       </div>
                     )}
 
+                    {activeTool === "threads" && (
+                      <div>
+                        <PanelHeading
+                          title={uiLanguage === "ar" ? "خيوط المعنى" : "Meaning Threads"}
+                          description={
+                            uiLanguage === "ar"
+                              ? "افتح العلاقة لترى إلى من يعود الضمير، ومن قام بالفعل، وكيف ترتبط أجزاء الجملة."
+                              : "Open a relation to see what a pronoun refers to, who performed an action, and how the sentence parts connect."
+                          }
+                          closeLabel={t.wordLens.close}
+                          onClose={() => setActiveTool(null)}
+                        />
+                        <MeaningThreadsPanel
+                          result={result}
+                          uiLanguage={uiLanguage}
+                          openedIndex={openedMeaningThread}
+                          onToggle={toggleMeaningThread}
+                        />
+                      </div>
+                    )}
+
                     {activeTool === "learning" && (
                       <div>
                         <PanelHeading
@@ -856,6 +1370,15 @@ export default function Home() {
                           closeLabel={t.wordLens.close}
                           onClose={() => setActiveTool(null)}
                         />
+                        {result.learning_cards.length >= 2 && (
+                          <WordMasteryCheck
+                            result={result}
+                            readingCount={profile.readings}
+                            uiLanguage={uiLanguage}
+                            selectedChoice={wordQuizChoice}
+                            onSelect={recordWordQuiz}
+                          />
+                        )}
                         <div className="mt-5 grid gap-3 sm:grid-cols-3">
                           {result.learning_cards.map((card) => (
                             <article key={card.term} className="learning-card">
@@ -916,20 +1439,42 @@ export default function Home() {
                           closeLabel={t.wordLens.close}
                           onClose={() => setActiveTool(null)}
                         />
-                        <button type="button" onClick={() => setShowAnswer((current) => !current)} className="mt-5 rounded-xl bg-teal px-5 py-3 text-sm font-black text-white">
-                          {showAnswer ? t.panels.hideAnswer : t.panels.showAnswer}
-                        </button>
-                        {showAnswer && (
-                          <div className="mt-4 rounded-xl bg-white p-4">
-                            <p className="leading-8 text-ink/75">
-                              {uiLanguage === "en" ? result.comprehension_check.answer_english : result.comprehension_check.answer}
-                            </p>
-                            {!checkRated ? (
-                              <div className="mt-4 flex flex-wrap gap-2">
-                                <button type="button" onClick={rateCheck} className="check-rate-button">{t.panels.understood}</button>
-                                <button type="button" onClick={rateCheck} className="check-rate-button">{t.panels.review}</button>
-                              </div>
-                            ) : <p className="mt-3 text-xs font-bold text-teal">{t.panels.checkRecorded}</p>}
+                        <div className="comprehension-choices">
+                          {(uiLanguage === "en" ? result.comprehension_check.choices_english : result.comprehension_check.choices).map((choice, index) => {
+                            const answered = comprehensionChoice !== null;
+                            const correct = answered && index === result.comprehension_check.correct_choice_index;
+                            const selected = comprehensionChoice === index;
+                            return (
+                              <button
+                                key={`${index}-${choice}`}
+                                type="button"
+                                disabled={answered}
+                                onClick={() => recordComprehensionChoice(index)}
+                                className={`${selected ? "selected" : ""} ${correct ? "correct" : ""}`}
+                              >
+                                <span>{String.fromCharCode(65 + index)}</span>
+                                <p>{choice}</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {comprehensionChoice !== null && (
+                          <div className={`comprehension-feedback ${comprehensionChoice === result.comprehension_check.correct_choice_index ? "correct" : "review"}`}>
+                            <strong>
+                              {comprehensionChoice === result.comprehension_check.correct_choice_index
+                                ? uiLanguage === "ar" ? "إجابة صحيحة" : "Correct"
+                                : uiLanguage === "ar" ? "لنراجع الإجابة" : "Let’s review"}
+                            </strong>
+                            <p>{uiLanguage === "en" ? result.comprehension_check.answer_english : result.comprehension_check.answer}</p>
+                            <small>
+                              {profile.levelMode === "automatic"
+                                ? uiLanguage === "ar"
+                                  ? `ستساعد هذه النتيجة في ضبط مستواك تدريجياً. مستواك الحالي: ${levelLabel(learnerLevel, uiLanguage)}.`
+                                  : `This result helps adjust your level gradually. Current level: ${levelLabel(learnerLevel, uiLanguage)}.`
+                                : uiLanguage === "ar"
+                                  ? `سجّلنا النتيجة، وسيبقى المستوى كما اخترته: ${levelLabel(learnerLevel, uiLanguage)}.`
+                                  : `We recorded the result, and your chosen level stays fixed: ${levelLabel(learnerLevel, uiLanguage)}.`}
+                            </small>
                           </div>
                         )}
                       </div>
@@ -1093,7 +1638,7 @@ export default function Home() {
           )}
         </section>
 
-        <section className="mx-auto mt-20 max-w-5xl text-center">
+        <section id="about" className="mx-auto mt-20 max-w-7xl scroll-mt-24 text-center">
           <p className="text-sm font-black text-teal">{t.principles.kicker}</p>
           <h2 className="mx-auto mt-3 max-w-2xl text-balance text-3xl font-black leading-[1.5] sm:text-4xl">{t.principles.title}</h2>
           <div className="mt-8 grid gap-4 text-start md:grid-cols-3">
@@ -1146,14 +1691,14 @@ function JourneyRail({
   activeTool: ResultTool | null;
 }) {
   const steps = uiLanguage === "ar"
-    ? ["أضف النص", "اعرف صعوبته", "اختر المستوى", "اقرأ بوضوح", "تعلّم المفردات", "راجع المعنى", "تدرّج في القراءة"]
-    : ["Add the text", "Check difficulty", "Choose a level", "Read clearly", "Learn vocabulary", "Review meaning", "Read progressively"];
+    ? ["أضف النص", "اعرف صعوبته", "اعرف مستواك", "افهم بوضوح", "تعلّم المفردات", "راجع المعنى", "تدرّج في الفهم"]
+    : ["Add the text", "Check difficulty", "Find your level", "Understand clearly", "Learn vocabulary", "Review meaning", "Progress gradually"];
 
   let activeIndex = 0;
   if (hasResult) {
     if (activeTool === "bridge" && hasBridge) activeIndex = 6;
     else if (activeTool === "trust") activeIndex = 5;
-    else if (["learning", "changes", "check", "visual"].includes(activeTool ?? "")) activeIndex = 4;
+    else if (["learning", "threads", "changes", "check", "visual"].includes(activeTool ?? "")) activeIndex = 4;
     else activeIndex = 3;
   } else if (isLoading || hasReadability) {
     activeIndex = hasReadability ? 3 : 1;
@@ -1254,6 +1799,111 @@ function BridgeModePanel({
         </article>
       ))}
     </div>
+  );
+}
+
+function MeaningThreadsPanel({
+  result,
+  uiLanguage,
+  openedIndex,
+  onToggle,
+}: {
+  result: SimplificationResult;
+  uiLanguage: UiLanguage;
+  openedIndex: number | null;
+  onToggle: (index: number, kind: MeaningThreadKind) => void;
+}) {
+  return (
+    <div className="meaning-threads-list">
+      {result.meaning_threads.map((thread, index) => {
+        const isOpen = openedIndex === index;
+        return (
+          <article key={`${index}-${thread.focus}-${thread.connects_to}`}>
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              onClick={() => onToggle(index, thread.kind)}
+            >
+              <div className="meaning-thread-heading">
+                <span>{meaningThreadKindLabel(thread.kind, uiLanguage)}</span>
+                <b aria-hidden="true">{isOpen ? "−" : "+"}</b>
+              </div>
+              <p dir="rtl" className="meaning-thread-sentence">{thread.sentence}</p>
+              <div dir="rtl" className="meaning-thread-link">
+                <strong>{thread.focus}</strong>
+                <span aria-hidden="true">←</span>
+                <strong>{thread.connects_to}</strong>
+              </div>
+              <small>{uiLanguage === "ar" ? thread.relation : thread.relation_english}</small>
+              {isOpen && (
+                <div className="meaning-thread-explanation">
+                  <p>{uiLanguage === "ar" ? thread.explanation : thread.explanation_english}</p>
+                  <span>
+                    {uiLanguage === "ar"
+                      ? "سجّلت «مفرداتي» أنك طلبت مساعدة في هذا النوع من العلاقات."
+                      : "My Vocabulary recorded that you requested help with this type of relation."}
+                  </span>
+                </div>
+              )}
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function WordMasteryCheck({
+  result,
+  readingCount,
+  uiLanguage,
+  selectedChoice,
+  onSelect,
+}: {
+  result: SimplificationResult;
+  readingCount: number;
+  uiLanguage: UiLanguage;
+  selectedChoice: number | null;
+  onSelect: (index: number) => void;
+}) {
+  const quizIndex = readingCount % result.learning_cards.length;
+  const quizCard = result.learning_cards[quizIndex];
+  const correct = selectedChoice === quizIndex;
+
+  return (
+    <section className="word-mastery-check">
+      <p>{uiLanguage === "ar" ? "اختبار من هذا النص" : "Check from this text"}</p>
+      <h4 dir="rtl">
+        {uiLanguage === "ar"
+          ? `ما معنى «${quizCard.term}» هنا؟`
+          : `What does “${quizCard.term}” mean here?`}
+      </h4>
+      <div>
+        {result.learning_cards.map((card, index) => (
+          <button
+            key={`${index}-${card.term}`}
+            type="button"
+            disabled={selectedChoice !== null}
+            onClick={() => onSelect(index)}
+            className={`${selectedChoice === index ? "selected" : ""} ${selectedChoice !== null && index === quizIndex ? "correct" : ""}`}
+          >
+            <span>{String.fromCharCode(65 + index)}</span>
+            {uiLanguage === "ar" ? card.simple_meaning : card.english_meaning}
+          </button>
+        ))}
+      </div>
+      {selectedChoice !== null && (
+        <aside className={correct ? "correct" : "review"}>
+          <strong>{correct ? uiLanguage === "ar" ? "أحسنت" : "Correct" : uiLanguage === "ar" ? "الإجابة الأقرب" : "The best answer"}</strong>
+          <p>{uiLanguage === "ar" ? quizCard.simple_meaning : quizCard.english_meaning}</p>
+          <small>
+            {uiLanguage === "ar"
+              ? "سجّلت «مفرداتي» النتيجة. لا تُعدّ الكلمة متقنة إلا بعد نجاحك فيها أكثر من مرة."
+              : "My Vocabulary recorded the result. A word is mastered only after more than one successful check."}
+          </small>
+        </aside>
+      )}
+    </section>
   );
 }
 
@@ -1372,6 +2022,84 @@ function integrityStatusLabel(status: string, uiLanguage: UiLanguage): string {
     return uiLanguage === "ar" ? "غير متاح بالكامل" : "Partly unavailable";
   }
   return uiLanguage === "ar" ? "لم تظهر مشكلة" : "No issue detected";
+}
+
+function masteryLabel(status: WordMasteryStatus, uiLanguage: UiLanguage): string {
+  const labels: Record<WordMasteryStatus, { ar: string; en: string }> = {
+    new: { ar: "جديدة", en: "New" },
+    learning: { ar: "قيد التعلّم", en: "Learning" },
+    mastered: { ar: "أتقنتها", en: "Mastered" },
+  };
+  return labels[status][uiLanguage];
+}
+
+function meaningThreadKindLabel(kind: MeaningThreadKind, uiLanguage: UiLanguage): string {
+  const labels: Record<MeaningThreadKind, { ar: string; en: string }> = {
+    pronoun: { ar: "مرجع الضمير", en: "Pronoun reference" },
+    actor: { ar: "من قام بالفعل؟", en: "Who acted?" },
+    connector: { ar: "رابط بين فكرتين", en: "Idea connector" },
+    negation: { ar: "نطاق النفي", en: "Scope of negation" },
+    condition: { ar: "الشرط والنتيجة", en: "Condition and result" },
+    reference: { ar: "مرجع العبارة", en: "Phrase reference" },
+  };
+  return labels[kind][uiLanguage];
+}
+
+function buildReadingMemorySnapshot(
+  savedWords: SavedWord[],
+  profile: LearningProfile,
+): ReadingMemorySnapshot {
+  const uniqueTerms = (words: SavedWord[]) => Array.from(new Set(words.map((word) => word.word))).slice(0, 8);
+  const difficultyFocus = (Object.entries(profile.difficultySignals) as Array<[MeaningThreadKind, number]>)
+    .filter(([, count]) => count > 0)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([kind]) => kind);
+
+  return {
+    mastered_terms: uniqueTerms(savedWords.filter((word) => word.mastery === "mastered")),
+    learning_terms: uniqueTerms(savedWords.filter((word) => word.mastery !== "mastered")),
+    difficulty_focus: difficultyFocus,
+  };
+}
+
+function masteryFromEvidence(
+  attempts: number,
+  correctAnswers: number,
+  supportCount: number,
+): WordMasteryStatus {
+  if (attempts >= 2 && correctAnswers >= 2 && correctAnswers / attempts >= 0.67) return "mastered";
+  if (attempts > 0 || supportCount > 1) return "learning";
+  return "new";
+}
+
+function buildSavedVocabularyQuiz(
+  savedWords: SavedWord[],
+  quizIndex: number,
+): { target: SavedWord; options: SavedWord[]; correctIndex: number } | null {
+  if (savedWords.length < 2) return null;
+
+  const targetIndex = quizIndex % savedWords.length;
+  const target = savedWords[targetIndex];
+  const distractors = savedWords
+    .filter((word) => word.id !== target.id)
+    .slice(0, 2);
+  const candidates = [target, ...distractors];
+  const rotation = quizIndex % candidates.length;
+  const options = [...candidates.slice(rotation), ...candidates.slice(0, rotation)];
+
+  return {
+    target,
+    options,
+    correctIndex: options.findIndex((word) => word.id === target.id),
+  };
+}
+
+function placementLevelFromScore(score: number): number {
+  if (score <= 0) return 1;
+  if (score === 1) return 2;
+  if (score === 2) return 3;
+  return 4;
 }
 
 const tFallbackNoDetailsAr = "لم نجد أرقاماً أو مواعيد أو شروطاً تحتاج إلى مراجعة منفصلة.";

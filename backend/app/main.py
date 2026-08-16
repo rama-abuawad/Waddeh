@@ -3,6 +3,7 @@ from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
@@ -10,6 +11,7 @@ from app.schemas import (
     PoetryOutput,
     PoetryRequest,
     PoetryResponse,
+    ReadingMemorySnapshot,
     ReadabilityAssessment,
     ReadabilityRequest,
     ReaderType,
@@ -110,6 +112,7 @@ async def simplify_pdf(
     request: Request,
     reader: ReaderType = Query(default=ReaderType.general_reader),
     level: SimplificationLevel = Query(default=SimplificationLevel.easy),
+    reading_memory: str = Header(default="", alias="X-Reading-Memory"),
     encoded_filename: str = Header(default="document.pdf", alias="X-File-Name"),
     service: GeminiService = Depends(get_gemini_service),
 ) -> SimplifyResponse:
@@ -132,13 +135,31 @@ async def simplify_pdf(
             detail="الملف المرفوع ليس ملف PDF صالحاً.",
         )
 
+    try:
+        memory = (
+            ReadingMemorySnapshot.model_validate_json(unquote(reading_memory))
+            if reading_memory
+            else ReadingMemorySnapshot()
+        )
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="تعذر قراءة ذاكرة التعلّم المرسلة.",
+        ) from exc
+
     decoded_name = unquote(encoded_filename).replace("\\", "/").split("/")[-1]
     safe_name = re.sub(r"[^\w.\-\u0600-\u06ff ]", "_", decoded_name)[:120]
     if not safe_name.lower().endswith(".pdf"):
         safe_name = f"{safe_name or 'document'}.pdf"
 
     try:
-        result = await run_in_threadpool(service.simplify_pdf, pdf_bytes, reader, level)
+        result = await run_in_threadpool(
+            service.simplify_pdf,
+            pdf_bytes,
+            reader,
+            level,
+            memory,
+        )
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

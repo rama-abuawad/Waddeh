@@ -33,9 +33,13 @@ The frontend stores the following in `localStorage`:
 - Saved vocabulary.
 - Reading count.
 - Preferred learner level.
+- Learner level mode and placement status.
 - Highest bridge level reached.
+- Vocabulary mastery states, quiz evidence, and review timestamps.
+- Comprehension feedback counts.
+- Meaning Thread categories the learner explicitly opened.
 
-This data stays on the current browser/device. There are no accounts or sync features in this version.
+This data stays on the current browser/device. A bounded snapshot of relevant vocabulary and difficulty categories is sent to the backend only with an active adaptation request so the next reading can be personalized. There are no accounts or sync features in this version.
 
 ## CORS
 

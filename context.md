@@ -62,13 +62,14 @@ Implemented in this branch:
 - Gemini integration behind the backend.
 - Text and PDF adaptation requests.
 - Deterministic readability assessment.
-- Explicit learner level selection.
+- Learner-controlled level setup: manual selection or a short placement check with optional automatic adjustment from later comprehension checks.
 - Controlled adaptation strategy.
 - Deterministic meaning-integrity checks.
 - Separate semantic integrity verification when Gemini is configured.
 - Contextual Word Lens.
+- Meaning Threads for pronouns, actors, connectors, negation, conditions, and references.
 - English translation support.
-- Local saved vocabulary and learner progress.
+- Device-local Reading Memory with saved-word MCQ review, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals.
 - Bridge Mode response and UI.
 - Backend tests and deterministic evaluation starter set.
 - GitHub Actions validation workflow.
@@ -78,7 +79,7 @@ Implemented in this branch:
 - Readability level is a heuristic, not a validated academic score.
 - Semantic integrity and Bridge Mode quality require Gemini and human review.
 - PDF source text is not persisted, so deterministic source-vs-adapted integrity is limited for PDFs in this MVP.
-- Learner profile is device-local only.
+- Reading Memory is device-local only and is based on placement and quiz evidence, not a validated proficiency model.
 - No accounts, sync, large document management, OCR, or generic chat are included.
 
 ## Roadmap

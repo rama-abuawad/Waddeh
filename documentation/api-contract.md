@@ -36,7 +36,12 @@ Request:
 {
   "text": "Arabic text of at least 20 characters",
   "reader": "child | general_reader | non_arabic_speaker",
-  "level": 1
+  "level": 1,
+  "reading_memory": {
+    "mastered_terms": ["المتقدم"],
+    "learning_terms": ["استيفاء"],
+    "difficulty_focus": ["pronoun", "condition"]
+  }
 }
 ```
 
@@ -44,7 +49,7 @@ Request:
 
 - `1`: Beginner / very easy.
 - `2`: Easy.
-- `3`: Standard.
+- `3`: Intermediate.
 - `4`: Advanced.
 - `5`: Original.
 
@@ -58,9 +63,10 @@ Returns `SimplifyResponse`:
 - `english_translation`.
 - `learning_cards`.
 - `change_map`.
+- `meaning_threads`: confident sentence relations with Arabic and English explanations.
 - `bridge`.
 - `meaning_integrity`.
-- `comprehension_check`.
+- `comprehension_check`, including three aligned Arabic/English answer choices and the validated correct-choice index.
 
 ## `POST /api/upload/pdf`
 
@@ -75,6 +81,7 @@ Headers:
 ```text
 Content-Type: application/pdf
 X-File-Name: encoded filename
+X-Reading-Memory: URI-encoded ReadingMemorySnapshot JSON
 ```
 
 Returns the same `SimplifyResponse` shape. PDF source text is not persisted, so deterministic source-vs-adapted integrity is limited in this MVP.

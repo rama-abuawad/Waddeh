@@ -2,7 +2,12 @@ from unittest.mock import Mock, patch
 
 from pydantic import BaseModel
 
-from app.schemas import SimplificationOutput
+from app.schemas import (
+    ReaderType,
+    ReadingMemorySnapshot,
+    SimplificationLevel,
+    SimplificationOutput,
+)
 from app.services.gemini import GeminiService
 
 
@@ -39,6 +44,24 @@ def test_simplification_schema_is_gemini_compatible() -> None:
     assert "adaptation_strategy" not in schema["required"]
     assert "enum" not in schema["$defs"]["SimplificationLevel"]
     assert "title" not in schema
+
+
+def test_simplification_prompt_uses_reading_memory_and_meaning_threads() -> None:
+    prompt = GeminiService._build_simplification_prompt(
+        reader=ReaderType.general_reader,
+        level=SimplificationLevel.easy,
+        source_instruction="النص العربي: مثال للاختبار",
+        reading_memory=ReadingMemorySnapshot(
+            mastered_terms=["المتقدم"],
+            learning_terms=["استيفاء"],
+            difficulty_focus=["pronoun", "condition"],
+        ),
+    )
+
+    assert "مفردات أتقنها: المتقدم" in prompt
+    assert "مفردات ما زال يتعلّمها: استيفاء" in prompt
+    assert "مرجع الضمير" in prompt
+    assert "meaning_threads" in prompt
 
 
 def test_gemini_retries_configured_fallback_after_rate_limit() -> None:

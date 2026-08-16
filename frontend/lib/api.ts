@@ -3,11 +3,19 @@ export type ConfidenceLevel = "low" | "medium" | "high";
 export type IntegrityStatus = "no_issue_detected" | "needs_attention" | "unavailable";
 export type IntegrityItemStatus = "preserved" | "missing" | "changed" | "no_issue_detected";
 export type ReadabilityLevel = "beginner" | "easy" | "standard" | "advanced";
+export type MeaningThreadKind = "pronoun" | "actor" | "connector" | "negation" | "condition" | "reference";
+
+export interface ReadingMemorySnapshot {
+  mastered_terms: string[];
+  learning_terms: string[];
+  difficulty_focus: MeaningThreadKind[];
+}
 
 export interface SimplifyPayload {
   text: string;
   reader: ReaderType;
   level: number;
+  reading_memory: ReadingMemorySnapshot;
 }
 
 export interface ReadabilityRequest {
@@ -118,6 +126,17 @@ export interface WordExplanation {
   confidence: ConfidenceLevel;
 }
 
+export interface MeaningThread {
+  kind: MeaningThreadKind;
+  sentence: string;
+  focus: string;
+  connects_to: string;
+  relation: string;
+  relation_english: string;
+  explanation: string;
+  explanation_english: string;
+}
+
 export interface PoetryResult {
   original_text: string;
   reader: ReaderType;
@@ -155,12 +174,16 @@ export interface SimplificationResult {
   visual_steps: string[];
   visual_steps_english: string[];
   change_map: ChangeItem[];
+  meaning_threads: MeaningThread[];
   bridge: BridgeMode;
   comprehension_check: {
     question: string;
     answer: string;
     question_english: string;
     answer_english: string;
+    choices: string[];
+    choices_english: string[];
+    correct_choice_index: number;
   };
   reader: ReaderType;
   level: number;
@@ -231,13 +254,18 @@ export function simplifyPdf(
   file: File,
   reader: ReaderType,
   level: number,
+  readingMemory: ReadingMemorySnapshot,
 ): Promise<SimplificationResult> {
-  const query = new URLSearchParams({ reader, level: String(level) });
+  const query = new URLSearchParams({
+    reader,
+    level: String(level),
+  });
   return requestJson<SimplificationResult>(`/api/upload/pdf?${query}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/pdf",
       "X-File-Name": encodeURIComponent(file.name),
+      "X-Reading-Memory": encodeURIComponent(JSON.stringify(readingMemory)),
     },
     body: file,
   }, 120_000);

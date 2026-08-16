@@ -9,6 +9,7 @@ from app.schemas import (
     ConfidenceLevel,
     ComprehensionCheck,
     LearningCard,
+    MeaningThread,
     PoetryLineExplanation,
     PoetryOutput,
     PoetryVocabularyItem,
@@ -54,6 +55,20 @@ class FakeGeminiService:
                     reason_english="A shorter, more familiar expression.",
                 )
             ],
+            meaning_threads=[
+                MeaningThread(
+                    kind="pronoun",
+                    sentence="يجب على المتقدم إكمال الشروط قبل انتهاء الوقت المحدد.",
+                    focus="المتقدم",
+                    connects_to="هو",
+                    relation="الضمير يعود إلى المتقدم.",
+                    relation_english="The pronoun refers to the applicant.",
+                    explanation="المتقدم هو الشخص المقصود بالفعل والشرط في هذه الجملة.",
+                    explanation_english=(
+                        "The applicant is the person connected to the action and condition."
+                    ),
+                )
+            ],
             bridge=BridgeMode(
                 current_level=SimplificationLevel.easy,
                 guidance="انتقل من النص السهل إلى صياغة أغنى عبر إعادة مفردة واحدة في كل خطوة.",
@@ -94,6 +109,17 @@ class FakeGeminiService:
                 answer="قبل انتهاء الوقت المحدد.",
                 question_english="When must the requirements be completed?",
                 answer_english="Before the stated deadline.",
+                choices=[
+                    "بعد انتهاء الوقت المحدد.",
+                    "قبل انتهاء الوقت المحدد.",
+                    "في أي وقت.",
+                ],
+                choices_english=[
+                    "After the stated deadline.",
+                    "Before the stated deadline.",
+                    "At any time.",
+                ],
+                correct_choice_index=1,
             ),
         )
 
@@ -181,6 +207,40 @@ def test_simplify() -> None:
     assert "إكمال الشروط" in response.json()["simplified_text"]
     assert "applicant" in response.json()["english_translation"]
     assert response.json()["learning_cards"][0]["term"] == "المتقدم"
+    assert response.json()["meaning_threads"][0]["kind"] == "pronoun"
+
+
+def test_simplify_receives_personal_reading_memory() -> None:
+    class CapturingGeminiService(FakeGeminiService):
+        received_memory = None
+
+        def simplify(self, request: object) -> SimplificationOutput:
+            self.received_memory = request.reading_memory  # type: ignore[attr-defined]
+            return super().simplify(request)
+
+    service = CapturingGeminiService()
+    app.dependency_overrides[get_gemini_service] = lambda: service
+    try:
+        response = client.post(
+            "/api/simplify",
+            json={
+                "text": "يتعين على المتقدم استيفاء جميع الشروط قبل انقضاء الموعد المحدد.",
+                "reader": "general_reader",
+                "level": 2,
+                "reading_memory": {
+                    "mastered_terms": ["المتقدم"],
+                    "learning_terms": ["استيفاء الشروط"],
+                    "difficulty_focus": ["pronoun", "condition"],
+                },
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert service.received_memory is not None
+    assert service.received_memory.mastered_terms == ["المتقدم"]
+    assert service.received_memory.difficulty_focus[0].value == "pronoun"
 
 
 def test_simplify_rejects_non_arabic_text() -> None:

@@ -1,6 +1,7 @@
+import re
 from enum import Enum, IntEnum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class ReaderType(str, Enum):
@@ -49,6 +50,33 @@ class IntegrityItemStatus(str, Enum):
     no_issue_detected = "no_issue_detected"
 
 
+class MeaningThreadKind(str, Enum):
+    pronoun = "pronoun"
+    actor = "actor"
+    connector = "connector"
+    negation = "negation"
+    condition = "condition"
+    reference = "reference"
+
+
+class ReadingMemorySnapshot(BaseModel):
+    mastered_terms: list[str] = Field(default_factory=list, max_length=16)
+    learning_terms: list[str] = Field(default_factory=list, max_length=16)
+    difficulty_focus: list[MeaningThreadKind] = Field(default_factory=list, max_length=6)
+
+    @field_validator("mastered_terms", "learning_terms")
+    @classmethod
+    def clean_arabic_terms(cls, value: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for item in value:
+            term = item.strip()
+            if not re.fullmatch(r"[\u0600-\u06ff\s\-ـ]{1,80}", term):
+                continue
+            if term not in cleaned:
+                cleaned.append(term)
+        return cleaned
+
+
 class DeterministicReadabilitySignals(BaseModel):
     sentence_count: int = Field(ge=0)
     word_count: int = Field(ge=0)
@@ -95,6 +123,7 @@ class SimplifyRequest(BaseModel):
     text: str = Field(min_length=20, max_length=15_000)
     reader: ReaderType = ReaderType.general_reader
     level: SimplificationLevel = SimplificationLevel.easy
+    reading_memory: ReadingMemorySnapshot = Field(default_factory=ReadingMemorySnapshot)
 
     @field_validator("text")
     @classmethod
@@ -116,6 +145,19 @@ class ComprehensionCheck(BaseModel):
     answer: str = Field(description="A concise answer supported only by the text.")
     question_english: str = Field(description="An accurate English version of the question.")
     answer_english: str = Field(description="An accurate English version of the answer.")
+    choices: list[str] = Field(min_length=3, max_length=3)
+    choices_english: list[str] = Field(min_length=3, max_length=3)
+    correct_choice_index: int = Field(ge=0, le=2)
+
+    @model_validator(mode="after")
+    def choices_must_match_answer(self) -> "ComprehensionCheck":
+        if len(self.choices) != len(self.choices_english):
+            raise ValueError("Arabic and English comprehension choices must align.")
+        if self.choices[self.correct_choice_index].strip() != self.answer.strip():
+            raise ValueError("The correct Arabic choice must match the answer.")
+        if self.choices_english[self.correct_choice_index].strip() != self.answer_english.strip():
+            raise ValueError("The correct English choice must match the translated answer.")
+        return self
 
 
 class ChangeItem(BaseModel):
@@ -123,6 +165,17 @@ class ChangeItem(BaseModel):
     clear: str = Field(description="The corresponding phrase in clear Arabic.")
     reason: str = Field(description="A short, natural Arabic explanation of why the change helps.")
     reason_english: str = Field(description="A short English version of the explanation.")
+
+
+class MeaningThread(BaseModel):
+    kind: MeaningThreadKind
+    sentence: str = Field(max_length=500)
+    focus: str = Field(max_length=120)
+    connects_to: str = Field(max_length=120)
+    relation: str = Field(max_length=120)
+    relation_english: str = Field(max_length=160)
+    explanation: str = Field(max_length=320)
+    explanation_english: str = Field(max_length=420)
 
 
 class AdaptationStrategy(BaseModel):
@@ -234,6 +287,11 @@ class SimplificationOutput(BaseModel):
         min_length=0,
         max_length=5,
         description="Up to five meaningful phrase-level simplification changes.",
+    )
+    meaning_threads: list[MeaningThread] = Field(
+        min_length=0,
+        max_length=6,
+        description="Confident sentence-level relations that help the reader follow the Arabic.",
     )
     bridge: BridgeMode
     comprehension_check: ComprehensionCheck

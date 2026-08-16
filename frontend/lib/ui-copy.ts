@@ -5,23 +5,16 @@ function arabicSavedWords(count: number): string {
   return `${count} ${count <= 10 ? "كلمات" : "كلمة"} محفوظة`;
 }
 
-function arabicLearningSummary(readings: number, words: number): string {
-  const readingSummary = readings === 0
-    ? "لم تنجز قراءة بعد"
-    : readings === 1
-      ? "أنجزت قراءة واحدة"
-      : readings === 2
-        ? "أنجزت قراءتين"
-        : `أنجزت ${readings} ${readings <= 10 ? "قراءات" : "قراءة"}`;
+function arabicLearningSummary(_readings: number, words: number): string {
   const wordSummary = words === 0
-    ? "لم تحفظ أي مفردة"
+    ? "لم تحفظ أي كلمة"
     : words === 1
-      ? "حفظت مفردة واحدة"
+      ? "حفظت كلمة واحدة"
       : words === 2
-        ? "حفظت مفردتين"
-        : `حفظت ${words} ${words <= 10 ? "مفردات" : "مفردة"}`;
+        ? "حفظت كلمتين"
+        : `حفظت ${words} ${words <= 10 ? "كلمات" : "كلمة"}`;
 
-  return `${readingSummary}، و${wordSummary}.`;
+  return `${wordSummary}.`;
 }
 
 export const uiCopy = {
@@ -31,18 +24,18 @@ export const uiCopy = {
     vocabularyButton: "مفرداتي",
     hero: {
       eyebrow: "افهم ← تعلّم ← تقدّم",
-      title: "افهم النص.",
-      accent: " وتقدّم في العربية.",
+      title: "نقرّب المعنى،",
+      accent: " ونبني الفهم.",
       description: "يقدّم لك «وضّح» النص بصياغة تناسب مستواك، ويحافظ على معناه وتفاصيله، ثم يساعدك على تعلّم مفرداته وتراكيبه حتى تقرأه بثقة.",
       secondary: "ابدأ بما تفهمه اليوم، واقرأ بثقة أكبر غداً.",
-      cta: "ابدأ القراءة",
+      cta: "وضّح لي",
     },
     featureShowcase: {
       eyebrow: "تعلّم من كل نص",
-      title: "وضوح الآن، وتقدّم مع كل قراءة",
+      title: "كل نص تفهمه، يصبح جزءاً من لغتك.",
       hint: "اختر نصاً يهمّك، واقرأه بالمستوى المناسب، ثم تعلّم الكلمات والتراكيب التي تقرّبك من صياغته كما وردت.",
       items: [
-        { label: "أضف نصّك", description: "استخدم مقالاً أو خبراً أو نصاً دراسياً تريد فهمه" },
+        { label: "أضف نصّك", description: "استخدم مقالاً أو خبراً أو أي محتوى عربي تريد فهمه" },
         { label: "ارفع ملف PDF", description: "اقرأ المستند كاملاً بصياغة أوضح تناسب مستواك" },
         { label: "احتفظ بمفرداتك", description: "اجمع الكلمات الجديدة وارجع إليها متى شئت" },
         { label: "افهم الشعر", description: "قرّب معنى الأبيات واحفظ كلماتها" },
@@ -83,7 +76,7 @@ export const uiCopy = {
     },
     poetry: {
       kicker: "وضّح للشعر",
-      title: "يبقى الشعر شعراً، ويصبح معناه أقرب.",
+      title: "اقترب من القصيدة، من غير أن تفقد سحرها.",
       description: "ضع الأبيات كما هي؛ نقرّب معناها بيتاً بيتاً، ونترجمها إلى الإنجليزية، ونختار لك كلمات تستحق أن تعود إليها.",
       inputLabel: "النص الشعري",
       placeholder: "اكتب أو الصق هنا الأبيات التي تريد فهمها…",
@@ -124,11 +117,11 @@ export const uiCopy = {
       saved: "محفوظة في مفرداتي ✓",
     },
     tools: {
-      intro: "أدوات لفهم النص والتعلّم منه",
+      intro: "ماذا تريد أن تفعل الآن؟",
       speech: "استمع للنص",
       stopSpeech: "إيقاف القراءة",
       speechDescription: "استمع إلى النص المعروض",
-      learning: "مفردات من النص",
+      learning: "مفرداتي",
       savedCount: arabicSavedWords,
       changes: "ما الذي تغيّر؟",
       changesDescription: "قارن بين الصياغتين",
@@ -140,11 +133,11 @@ export const uiCopy = {
       trustDescription: "نتأكد من بقاء التفاصيل المهمة",
     },
     panels: {
-      learningTitle: "مفردات تستحق أن تتعلّمها",
+      learningTitle: "تعلّم من هذا النص",
       learningSummary: arabicLearningSummary,
       saveWord: "+ احفظ الكلمة",
       vocabulary: "مفرداتي",
-      vocabularyDescription: "الكلمات التي حفظتها من قراءاتك.",
+      vocabularyDescription: "تتذكر ما تتعلّمه وتستخدمه لتخصيص قراءاتك القادمة على هذا الجهاز.",
       emptyVocabulary: "لا توجد كلمات محفوظة بعد.",
       emptyVocabularyHint: "وضّح نصاً، ثم اضغط على أي كلمة واحفظها من عدسة الكلمات.",
       removeWord: (word: string) => `حذف ${word}`,
@@ -172,7 +165,7 @@ export const uiCopy = {
       newContent: "محتوى جديد",
     },
     principles: {
-      kicker: "الفكرة التي تقود وضّح",
+      kicker: "عن وضّح",
       title: "نفكّ تعقيد النص، لا معناه.",
       cards: [
         { title: "أوضح، لا أقل", body: "نرتّب الفكرة ونخفف تعقيد العبارة، مع إبقاء الأسماء والتواريخ والأرقام والشروط كما هي." },
@@ -184,21 +177,21 @@ export const uiCopy = {
   en: {
     homeLabel: "Waddeh - Home",
     languageLabel: "Website language",
-    vocabularyButton: "My words",
+    vocabularyButton: "My vocabulary",
     hero: {
       eyebrow: "Understand → Learn → Progress",
-      title: "Understand the text.",
-      accent: " Progress in Arabic.",
+      title: "We bring meaning closer,",
+      accent: " and build understanding.",
       description: "Waddeh presents the text in wording suited to your level, preserves its meaning and details, then helps you learn its vocabulary and structures so you can read with confidence.",
       secondary: "Start with what you understand today, and read with greater confidence tomorrow.",
-      cta: "Start reading",
+      cta: "Try Waddeh",
     },
     featureShowcase: {
       eyebrow: "Learn from every text",
-      title: "Clarity now, progress with every reading",
+      title: "Every text you understand becomes part of your language.",
       hint: "Choose a text that matters to you, read it at the right level, then learn the words and structures that bring its wording within reach.",
       items: [
-        { label: "Add your text", description: "Use an article, news story, or study text you want to understand" },
+        { label: "Add your text", description: "Use an article, news story, or any Arabic content you want to understand" },
         { label: "Upload a PDF", description: "Read the full document in clearer wording suited to your level" },
         { label: "Save your vocabulary", description: "Collect new words and return to them whenever you like" },
         { label: "Understand poetry", description: "Bring the meaning of each verse closer and save its words" },
@@ -239,7 +232,7 @@ export const uiCopy = {
     },
     poetry: {
       kicker: "Poetry with Waddeh",
-      title: "Poetry stays poetry. Its meaning comes closer.",
+      title: "Come closer to the poem without losing its magic.",
       description: "Paste the verses as written. Waddeh explains them line by line, translates them into English, and selects useful words for later study.",
       inputLabel: "Arabic poem",
       placeholder: "Type or paste the Arabic verses you want to understand…",
@@ -280,11 +273,11 @@ export const uiCopy = {
       saved: "Saved to my vocabulary ✓",
     },
     tools: {
-      intro: "Tools to understand and learn from the text",
+      intro: "What would you like to do next?",
       speech: "Listen to the text",
       stopSpeech: "Stop reading",
       speechDescription: "Listen to the text on screen",
-      learning: "Words from the text",
+      learning: "My Vocabulary",
       savedCount: (count: number) => `${count} saved ${count === 1 ? "word" : "words"}`,
       changes: "What changed?",
       changesDescription: "Compare the two versions",
@@ -296,11 +289,11 @@ export const uiCopy = {
       trustDescription: "Check that important details remain",
     },
     panels: {
-      learningTitle: "Vocabulary worth learning",
-      learningSummary: (readings: number, words: number) => `${readings} ${readings === 1 ? "reading" : "readings"} completed and ${words} ${words === 1 ? "word" : "words"} saved.`,
+      learningTitle: "Learn from this text",
+      learningSummary: (_readings: number, words: number) => `${words} saved ${words === 1 ? "word" : "words"}.`,
       saveWord: "+ Save word",
-      vocabulary: "My vocabulary",
-      vocabularyDescription: "Words you have saved from your readings.",
+      vocabulary: "My Vocabulary",
+      vocabularyDescription: "It remembers what you learn and uses it to personalize future readings on this device.",
       emptyVocabulary: "You have not saved any words yet.",
       emptyVocabularyHint: "Clarify a text, select any word, and save it from Word Lens.",
       removeWord: (word: string) => `Remove ${word}`,
@@ -328,7 +321,7 @@ export const uiCopy = {
       newContent: "New content",
     },
     principles: {
-      kicker: "The idea behind Waddeh",
+      kicker: "About Waddeh",
       title: "We untangle the text, not its meaning.",
       cards: [
         { title: "Clearer, not less", body: "We organize the idea and ease the wording while keeping names, dates, numbers, and conditions unchanged." },

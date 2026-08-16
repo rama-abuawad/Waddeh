@@ -7,7 +7,7 @@ It is an Arabic-first adaptive reading companion built around one journey:
 ```text
 Authentic Arabic
   -> Difficulty Assessment
-  -> Learner Level
+  -> Chosen or Assessed Learner Level
   -> Controlled Arabic Adaptation
   -> Meaning Integrity Check
   -> Contextual Vocabulary Learning
@@ -26,14 +26,15 @@ Waddeh is designed to bridge the gap between the Arabic a learner understands to
 Implemented in the current competition branch:
 
 - Arabic readability assessment with deterministic signals and honest heuristic labels.
-- Explicit learner-level selection: Beginner, Easy, Standard, Advanced, Original.
+- Flexible learner level: users can choose Beginner, Easy, Intermediate, Advanced, or As Written, or take a short placement check and allow later comprehension checks to adjust it gradually.
 - Controlled Arabic adaptation through the FastAPI/Gemini backend.
 - Independent meaning-integrity layer with deterministic fact checks and separate semantic verification when Gemini is configured.
 - Bridge Mode for progressively richer Arabic versions that lead back toward the original.
 - Contextual Word Lens with diacritics, meaning, root when confident, synonym, English support, and save-to-vocabulary.
+- Meaning Threads that reveal confident pronoun, actor, connector, negation, condition, and reference relationships inside Arabic sentences.
 - English translation as support, not the destination.
 - PDF upload path for the same adaptive reading journey.
-- Device-local learner progress and saved vocabulary.
+- Device-local Reading Memory with optional saved-word MCQ review, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals used in later readings.
 - PWA shell, RTL/LTR interface, frontend validation, backend tests, CI, and deterministic evaluation starter set.
 
 Waddeh is not a generic chatbot, generic translator, generic PDF chatbot, unrelated AI feature bundle, or Duolingo clone.
@@ -43,7 +44,7 @@ Waddeh is not a generic chatbot, generic translator, generic PDF chatbot, unrela
 - Readability levels are heuristic, not academically validated scores.
 - Live adaptation quality, Bridge Mode ordering, and semantic integrity require a configured Gemini key and human review.
 - PDF source text is not persisted in this MVP, so deterministic source-vs-adapted integrity is limited for PDFs.
-- Learner profile is local to the browser/device.
+- Reading Memory is local to the browser/device and reflects placement and quiz evidence rather than a validated proficiency score.
 - No accounts, OCR, large document library, or open-ended chat are included.
 
 ## Architecture

@@ -1,6 +1,8 @@
 import base64
 import copy
+import io
 import logging
+import wave
 from functools import lru_cache
 from typing import Any, TypeVar
 
@@ -33,6 +35,15 @@ class GeminiServiceError(RuntimeError):
     """Raised when Gemini cannot return a valid response."""
 
 
+class GeminiSpeechError(GeminiServiceError):
+    """Raised when cloud speech generation fails with a safe client-facing reason."""
+
+    def __init__(self, message: str, *, code: str, http_status: int = 502) -> None:
+        super().__init__(message)
+        self.code = code
+        self.http_status = http_status
+
+
 READER_DESCRIPTIONS = {
     "child": "طفل: استخدم كلمات شائعة وجملاً قصيرة جداً مع فكرة واحدة في كل جملة.",
     "general_reader": "قارئ عام: استخدم عربية فصحى طبيعية وواضحة.",
@@ -52,10 +63,21 @@ LEVEL_DESCRIPTIONS = {
 
 
 class GeminiService:
-    def __init__(self, api_key: str, model: str, fallback_model: str = "") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        fallback_model: str = "",
+        tts_model: str = "gemini-3.1-flash-tts-preview",
+        tts_arabic_voice: str = "Sulafat",
+        tts_english_voice: str = "Sulafat",
+    ) -> None:
         self.api_key = api_key
         self.model = model
         self.fallback_model = fallback_model.strip()
+        self.tts_model = tts_model
+        self.tts_arabic_voice = tts_arabic_voice
+        self.tts_english_voice = tts_english_voice
 
     def simplify(self, request: SimplifyRequest) -> SimplificationOutput:
         prompt = self._build_simplification_prompt(
@@ -185,6 +207,229 @@ class GeminiService:
 - اجعل العربية والإنجليزية موجزتين وطبيعيتين، وتجنب التكرار والصياغة المتكلفة.
 """.strip()
         return self._generate(input_data=prompt, output_model=PoetryOutput)
+
+    def generate_speech(self, text: str, language: str) -> bytes:
+        if not self.api_key:
+            raise GeminiConfigurationError("GEMINI_API_KEY is missing.")
+
+        voice = self.tts_arabic_voice if language == "ar" else self.tts_english_voice
+        prompt = self._build_tts_prompt(text=text, language=language)
+
+        try:
+            with httpx.Client(timeout=httpx.Timeout(25.0, connect=5.0), trust_env=False) as client:
+                response = self._post_tts_interaction(client=client, prompt=prompt, voice=voice)
+
+                # The preview TTS model can occasionally return a transient 500.
+                # Retry that specific provider failure once, but do not retry limits/timeouts.
+                if response.status_code == httpx.codes.INTERNAL_SERVER_ERROR:
+                    logger.warning("Gemini TTS returned 500; retrying once.")
+                    response = self._post_tts_interaction(client=client, prompt=prompt, voice=voice)
+
+                self._raise_for_tts_status(response)
+                data = response.json()
+                audio_base64 = self._extract_tts_audio_data(data)
+
+                if not audio_base64:
+                    logger.warning("Gemini TTS returned no audio; retrying once.")
+                    response = self._post_tts_interaction(client=client, prompt=prompt, voice=voice)
+                    self._raise_for_tts_status(response)
+                    data = response.json()
+                    audio_base64 = self._extract_tts_audio_data(data)
+
+                if not audio_base64:
+                    logger.error("Gemini TTS returned no usable audio block.")
+                    raise GeminiSpeechError(
+                        "Cloud voice returned no playable audio.",
+                        code="no_audio",
+                    )
+
+                try:
+                    pcm_bytes = base64.b64decode(audio_base64, validate=True)
+                except (ValueError, base64.binascii.Error) as exc:
+                    raise GeminiSpeechError(
+                        "Cloud voice returned invalid audio.",
+                        code="invalid_audio",
+                    ) from exc
+
+                if not pcm_bytes or len(pcm_bytes) % 2 != 0:
+                    raise GeminiSpeechError(
+                        "Cloud voice returned invalid audio.",
+                        code="invalid_audio",
+                    )
+
+                wav_buffer = io.BytesIO()
+                with wave.open(wav_buffer, "wb") as wav_file:
+                    wav_file.setnchannels(1)
+                    wav_file.setsampwidth(2)
+                    wav_file.setframerate(24000)
+                    wav_file.writeframes(pcm_bytes)
+
+                return wav_buffer.getvalue()
+        except GeminiSpeechError:
+            raise
+        except GeminiConfigurationError:
+            raise
+        except httpx.TimeoutException as exc:
+            logger.warning("Gemini TTS request timed out.")
+            raise GeminiSpeechError(
+                "Cloud voice timed out.",
+                code="timeout",
+                http_status=504,
+            ) from exc
+        except httpx.RequestError as exc:
+            logger.warning("Gemini TTS network request failed (%s).", type(exc).__name__)
+            raise GeminiSpeechError(
+                "Cloud voice could not be reached.",
+                code="network_error",
+                http_status=502,
+            ) from exc
+        except Exception as exc:
+            logger.error("Gemini TTS request failed (%s).", type(exc).__name__)
+            raise GeminiSpeechError(
+                "Cloud voice is temporarily unavailable.",
+                code="provider_unavailable",
+                http_status=502,
+            ) from exc
+
+    def _raise_for_tts_status(self, response: httpx.Response) -> None:
+        if response.status_code < 400:
+            return
+
+        try:
+            safe_body: Any = self._sanitize_tts_response(response.json())
+        except Exception:
+            safe_body = "<non-json response>"
+
+        logger.error(
+            "Gemini TTS HTTP error %s response=%s",
+            response.status_code,
+            safe_body,
+        )
+
+        if response.status_code == httpx.codes.TOO_MANY_REQUESTS:
+            raise GeminiSpeechError(
+                "Cloud voice usage limit reached. Try again later.",
+                code="rate_limited",
+                http_status=429,
+            )
+        if response.status_code >= 500:
+            raise GeminiSpeechError(
+                "Cloud voice provider is temporarily unavailable.",
+                code="provider_unavailable",
+                http_status=502,
+            )
+
+        raise GeminiSpeechError(
+            "Cloud voice request was rejected.",
+            code="provider_rejected",
+            http_status=502,
+        )
+
+    def _post_tts_interaction(
+        self,
+        *,
+        client: httpx.Client,
+        prompt: str,
+        voice: str,
+    ) -> httpx.Response:
+        return client.post(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            headers={
+                "x-goog-api-key": self.api_key,
+                "Content-Type": "application/json",
+                "Api-Revision": "2026-05-20",
+            },
+            json={
+                "model": self.tts_model,
+                "input": prompt,
+                "store": False,
+                "response_format": {"type": "audio"},
+                "generation_config": {
+                    "speech_config": [{"voice": voice}],
+                },
+            },
+        )
+
+    @staticmethod
+    def _build_tts_prompt(text: str, language: str) -> str:
+        if language == "ar":
+            directions = (
+                "Synthesize speech from the Arabic transcript below. "
+                "Read only the transcript, exactly as written. "
+                "Use clear, natural Modern Standard Arabic with careful pronunciation, "
+                "natural pauses, and a calm learner-friendly pace. "
+                "Preserve Arabic diacritics when they are present. "
+                "Do not translate, summarize, explain, paraphrase, add, or omit words. "
+                "Do not read these instructions or the transcript labels aloud."
+            )
+        else:
+            directions = (
+                "Synthesize speech from the English transcript below. "
+                "Read only the transcript, exactly as written. "
+                "Use clear, warm, natural English at a calm learner-friendly pace. "
+                "Do not translate, summarize, explain, paraphrase, add, or omit words. "
+                "Do not read these instructions or the transcript labels aloud."
+            )
+
+        return f"{directions}\n\n### TRANSCRIPT START\n{text}\n### TRANSCRIPT END"
+
+    @staticmethod
+    def _extract_tts_audio_data(data: dict[str, Any]) -> str | None:
+        for key in ("output_audio", "outputAudio"):
+            output_audio = data.get(key)
+            if isinstance(output_audio, dict):
+                audio_data = output_audio.get("data")
+                if isinstance(audio_data, str) and audio_data:
+                    return audio_data
+
+        interaction = data.get("interaction")
+        if isinstance(interaction, dict):
+            for key in ("output_audio", "outputAudio"):
+                output_audio = interaction.get(key)
+                if isinstance(output_audio, dict):
+                    audio_data = output_audio.get("data")
+                    if isinstance(audio_data, str) and audio_data:
+                        return audio_data
+
+        steps = data.get("steps")
+        if isinstance(steps, list):
+            for step in steps:
+                if not isinstance(step, dict) or step.get("type") != "model_output":
+                    continue
+                content_blocks = step.get("content")
+                if not isinstance(content_blocks, list):
+                    continue
+                for block in content_blocks:
+                    if not isinstance(block, dict):
+                        continue
+                    audio_data = block.get("data")
+                    mime_type = block.get("mimeType") or block.get("mime_type") or ""
+                    if (
+                        isinstance(audio_data, str)
+                        and audio_data
+                        and (block.get("type") == "audio" or str(mime_type).startswith("audio/"))
+                    ):
+                        return audio_data
+
+        return None
+
+    @staticmethod
+    def _sanitize_tts_response(data: dict[str, Any]) -> dict[str, Any]:
+        safe_data = copy.deepcopy(data)
+
+        def sanitize(value: Any) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key == "data" and isinstance(item, str) and len(item) > 100:
+                        value[key] = f"<base64 len={len(item)}>"
+                    else:
+                        sanitize(item)
+            elif isinstance(value, list):
+                for item in value:
+                    sanitize(item)
+
+        sanitize(safe_data)
+        return safe_data
 
     def _generate(
         self,
@@ -381,4 +626,7 @@ def get_gemini_service() -> GeminiService:
         api_key=settings.gemini_api_key,
         model=settings.ai_model,
         fallback_model=settings.ai_fallback_model,
+        tts_model=settings.ai_tts_model,
+        tts_arabic_voice=settings.ai_tts_arabic_voice,
+        tts_english_voice=settings.ai_tts_english_voice,
     )

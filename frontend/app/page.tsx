@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
@@ -14,6 +14,9 @@ import {
   explainWord,
   simplifyPdf,
   simplifyText,
+  generateSpeechBlob,
+  SpeechFailureReason,
+  SpeechRequestError,
 } from "@/lib/api";
 import { UiLanguage, uiCopy } from "@/lib/ui-copy";
 
@@ -60,6 +63,42 @@ const learnerLevels = [
 
 const resultViews: ResultView[] = ["clear", "english", "original"];
 const featureMarks = ["TXT", "PDF", "Aa", "POEM"];
+const SPEECH_CACHE_LIMIT = 10;
+
+type SpeechSessionStatus = "loading" | "playing";
+type SpeechSource = "gemini" | "browser";
+
+interface SpeechSession {
+  id: number;
+  status: SpeechSessionStatus;
+  source: SpeechSource | null;
+  controller: AbortController | null;
+  sourceNode: AudioBufferSourceNode | null;
+}
+
+type SpeechNoticeKind = "fallback" | "unavailable";
+
+interface SpeechNotice {
+  kind: SpeechNoticeKind;
+  reason: SpeechFailureReason;
+  language: "ar" | "en";
+}
+
+function clearSpeechSession(session: SpeechSession | null, abortRequest = true) {
+  if (!session) return;
+  if (abortRequest) session.controller?.abort();
+  session.controller = null;
+  if (session.sourceNode) {
+    try {
+      session.sourceNode.onended = null;
+      session.sourceNode.stop();
+      session.sourceNode.disconnect();
+    } catch {
+      // A source may already have ended; cleanup should remain idempotent.
+    }
+    session.sourceNode = null;
+  }
+}
 
 export default function Home() {
   const [uiLanguage, setUiLanguage] = useState<UiLanguage>("ar");
@@ -86,6 +125,12 @@ export default function Home() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isSpeechLoading, setIsSpeechLoading] = useState(false);
+  const [speechNotice, setSpeechNotice] = useState<SpeechNotice | null>(null);
+  const audioCache = useRef<Map<string, Blob>>(new Map());
+  const speechSessionId = useRef(0);
+  const activeSpeechSession = useRef<SpeechSession | null>(null);
+  const speechAudioContext = useRef<AudioContext | null>(null);
   const [copied, setCopied] = useState(false);
   const [vocabularyOpen, setVocabularyOpen] = useState(false);
   const [poetryText, setPoetryText] = useState("");
@@ -100,6 +145,7 @@ export default function Home() {
   const selectedLevel = learnerLevel;
 
   useEffect(() => {
+    const currentCache = audioCache.current;
     const restoreProgress = window.setTimeout(() => {
       try {
         const storedWords = window.localStorage.getItem("waddeh-vocabulary");
@@ -121,6 +167,11 @@ export default function Home() {
     return () => {
       window.clearTimeout(restoreProgress);
       window.speechSynthesis?.cancel();
+      clearSpeechSession(activeSpeechSession.current);
+      activeSpeechSession.current = null;
+      currentCache.clear();
+      void speechAudioContext.current?.close();
+      speechAudioContext.current = null;
     };
   }, []);
 
@@ -165,8 +216,7 @@ export default function Home() {
     setShowDiacritics(false);
     setWordLens(null);
     setCopied(false);
-    window.speechSynthesis?.cancel();
-    setIsSpeaking(false);
+    stopTTS();
 
     if (sourceMode === "text" && text.trim().length < 20) {
       setError(t.errors.textTooShort);
@@ -317,27 +367,272 @@ export default function Home() {
     if (tool !== "check") setShowAnswer(false);
   }
 
-  function toggleSpeech() {
-    if (!("speechSynthesis" in window)) return;
-    if (isSpeaking) {
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+  async function toggleSpeech() {
+    if (isSpeaking || isSpeechLoading) {
+      stopTTS();
       return;
     }
 
-    const utterance = new SpeechSynthesisUtterance(visibleResult());
-    utterance.lang = resultView === "english" ? "en-US" : "ar-SA";
-    utterance.rate = 0.88;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    window.speechSynthesis.speak(utterance);
-    setIsSpeaking(true);
+    const textToSpeak = visibleResult().trim();
+    if (!textToSpeak) return;
+
+    setSpeechNotice(null);
+    const lang = resultView === "english" ? "en" : "ar";
+    const cacheKey = `${lang}:${textToSpeak}`;
+    const session: SpeechSession = {
+      id: speechSessionId.current + 1,
+      status: "loading",
+      source: null,
+      controller: null,
+      sourceNode: null,
+    };
+    speechSessionId.current = session.id;
+    window.speechSynthesis?.cancel();
+    clearSpeechSession(activeSpeechSession.current);
+    activeSpeechSession.current = session;
+
+    // Resume Web Audio immediately from the user's click. This avoids delayed
+    // playback being blocked by autoplay policy after the network request returns.
+    try {
+      const audioContext = getSpeechAudioContext();
+      if (audioContext.state === "suspended") await audioContext.resume();
+    } catch {
+      // Gemini can still be requested; browser speech remains the fallback.
+    }
+
+    const cachedBlob = audioCache.current.get(cacheKey);
+    if (cachedBlob) {
+      setIsSpeechLoading(true);
+      setIsSpeaking(false);
+      await playGeminiBlob(session, cachedBlob, textToSpeak, lang);
+      return;
+    }
+
+    setIsSpeechLoading(true);
+    setIsSpeaking(false);
+    const controller = new AbortController();
+    session.controller = controller;
+
+    try {
+      const blob = await generateSpeechBlob(textToSpeak, lang, controller.signal);
+      if (!isActiveSpeechSession(session)) return;
+
+      if (audioCache.current.size >= SPEECH_CACHE_LIMIT) {
+        const firstKey = audioCache.current.keys().next().value;
+        if (firstKey) audioCache.current.delete(firstKey);
+      }
+      audioCache.current.set(cacheKey, blob);
+
+      await playGeminiBlob(session, blob, textToSpeak, lang);
+    } catch (err) {
+      if (!isActiveSpeechSession(session)) return;
+      if ((err instanceof Error && err.name === "AbortError") || controller.signal.aborted) return;
+      const reason = err instanceof SpeechRequestError ? err.reason : "unknown";
+      console.warn("Gemini TTS unavailable; attempting device voice fallback.", {
+        reason,
+        status: err instanceof SpeechRequestError ? err.status : undefined,
+      });
+      await playBrowserSpeech(session, textToSpeak, lang, reason);
+    }
   }
 
   async function copyResult() {
     await navigator.clipboard.writeText(visibleResult());
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  function stopTTS() {
+    speechSessionId.current += 1;
+    window.speechSynthesis?.cancel();
+    clearSpeechSession(activeSpeechSession.current);
+    activeSpeechSession.current = null;
+    setIsSpeechLoading(false);
+    setIsSpeaking(false);
+    setSpeechNotice(null);
+  }
+
+  function isActiveSpeechSession(session: SpeechSession) {
+    return activeSpeechSession.current?.id === session.id;
+  }
+
+  function finishSpeechSession(session: SpeechSession) {
+    if (!isActiveSpeechSession(session)) return;
+    clearSpeechSession(session, false);
+    activeSpeechSession.current = null;
+    setIsSpeechLoading(false);
+    setIsSpeaking(false);
+  }
+
+  function getSpeechAudioContext(): AudioContext {
+    if (!speechAudioContext.current || speechAudioContext.current.state === "closed") {
+      speechAudioContext.current = new AudioContext();
+    }
+    return speechAudioContext.current;
+  }
+
+  async function playGeminiBlob(
+    session: SpeechSession,
+    blob: Blob,
+    textToSpeak: string,
+    lang: "ar" | "en",
+  ) {
+    if (!isActiveSpeechSession(session)) return;
+    window.speechSynthesis?.cancel();
+    clearSpeechSession(session, false);
+
+    try {
+      const audioContext = getSpeechAudioContext();
+      if (audioContext.state === "suspended") await audioContext.resume();
+      const audioBuffer = await audioContext.decodeAudioData(await blob.arrayBuffer());
+      if (!isActiveSpeechSession(session)) return;
+
+      const sourceNode = audioContext.createBufferSource();
+      sourceNode.buffer = audioBuffer;
+      sourceNode.connect(audioContext.destination);
+      session.sourceNode = sourceNode;
+      session.status = "playing";
+      session.source = "gemini";
+      setSpeechNotice(null);
+      setIsSpeechLoading(false);
+      setIsSpeaking(true);
+
+      sourceNode.onended = () => finishSpeechSession(session);
+      sourceNode.start();
+    } catch (error) {
+      if (!isActiveSpeechSession(session)) return;
+      console.warn("Generated audio could not be played; attempting device voice fallback.", error);
+      await playBrowserSpeech(session, textToSpeak, lang, "invalid_audio");
+    }
+  }
+
+  async function getBrowserVoices(): Promise<SpeechSynthesisVoice[]> {
+    if (!("speechSynthesis" in window)) return [];
+
+    const synth = window.speechSynthesis;
+    const loadedVoices = synth.getVoices();
+    if (loadedVoices.length > 0) return loadedVoices;
+
+    // Chromium can expose an empty list briefly while OS voices are still loading.
+    // Wait once for voiceschanged before deciding that the device has no matching voice.
+    return await new Promise<SpeechSynthesisVoice[]>((resolve) => {
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        synth.removeEventListener("voiceschanged", finish);
+        resolve(synth.getVoices());
+      };
+
+      const timeoutId = window.setTimeout(finish, 1_200);
+      synth.addEventListener("voiceschanged", finish);
+    });
+  }
+
+  function findBrowserVoice(
+    lang: "ar" | "en",
+    voices: SpeechSynthesisVoice[],
+  ): SpeechSynthesisVoice | null {
+    const preferredLocales = lang === "ar"
+      ? ["ar-AE", "ar-SA", "ar"]
+      : ["en-US", "en-GB", "en"];
+
+    for (const locale of preferredLocales) {
+      const exact = voices.find((voice) => voice.lang.toLowerCase() === locale.toLowerCase());
+      if (exact) return exact;
+      const prefix = voices.find((voice) => voice.lang.toLowerCase().startsWith(`${locale.toLowerCase()}-`));
+      if (prefix) return prefix;
+    }
+    return null;
+  }
+
+  function speechNoticeText(notice: SpeechNotice): string {
+    const isArabicUi = uiLanguage === "ar";
+
+    if (notice.kind === "fallback") {
+      if (notice.reason === "rate_limited") {
+        return isArabicUi
+          ? "تم بلوغ حد الصوت السحابي — نستخدم صوت الجهاز."
+          : "Cloud voice limit reached — using your device voice.";
+      }
+      if (notice.reason === "timeout") {
+        return isArabicUi
+          ? "تأخر الصوت السحابي — نستخدم صوت الجهاز."
+          : "Cloud voice timed out — using your device voice.";
+      }
+      return isArabicUi
+        ? "الصوت السحابي غير متاح حالياً — نستخدم صوت الجهاز."
+        : "Cloud voice unavailable — using your device voice.";
+    }
+
+    const cloudReason = notice.reason === "rate_limited"
+      ? (isArabicUi ? "تم بلوغ حد الصوت السحابي" : "cloud voice limit reached")
+      : notice.reason === "timeout"
+        ? (isArabicUi ? "تأخر الصوت السحابي" : "cloud voice timed out")
+        : (isArabicUi ? "تعذّر الصوت السحابي" : "cloud voice failed");
+
+    if (notice.language === "ar") {
+      return isArabicUi
+        ? `الصوت العربي غير متاح: ${cloudReason} ولا يوجد صوت عربي على هذا الجهاز.`
+        : `Arabic voice unavailable: ${cloudReason} and this device has no Arabic voice.`;
+    }
+
+    return isArabicUi
+      ? `الصوت غير متاح: ${cloudReason} ولا يوجد صوت إنجليزي مناسب على هذا الجهاز.`
+      : `Voice unavailable: ${cloudReason} and this device has no matching English voice.`;
+  }
+
+  async function playBrowserSpeech(
+    session: SpeechSession,
+    textToSpeak: string,
+    lang: "ar" | "en",
+    reason: SpeechFailureReason,
+  ) {
+    if (!isActiveSpeechSession(session)) return;
+    clearSpeechSession(session, false);
+    session.controller = null;
+
+    if (!("speechSynthesis" in window)) {
+      setSpeechNotice({ kind: "unavailable", reason, language: lang });
+      finishSpeechSession(session);
+      return;
+    }
+
+    const voices = await getBrowserVoices();
+    if (!isActiveSpeechSession(session)) return;
+
+    const selectedVoice = findBrowserVoice(lang, voices);
+    if (!selectedVoice) {
+      console.warn(`No ${lang === "ar" ? "Arabic" : "English"} device speech voice is available.`);
+      setSpeechNotice({ kind: "unavailable", reason, language: lang });
+      finishSpeechSession(session);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.voice = selectedVoice;
+    utterance.lang = selectedVoice.lang;
+    utterance.rate = 0.88;
+    utterance.onend = () => finishSpeechSession(session);
+    utterance.onerror = () => {
+      setSpeechNotice({ kind: "unavailable", reason, language: lang });
+      finishSpeechSession(session);
+    };
+
+    session.status = "playing";
+    session.source = "browser";
+    setSpeechNotice({ kind: "fallback", reason, language: lang });
+    setIsSpeechLoading(false);
+    setIsSpeaking(true);
+    try {
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      setSpeechNotice({ kind: "unavailable", reason, language: lang });
+      finishSpeechSession(session);
+    }
   }
 
   function resetWorkspace() {
@@ -348,6 +643,7 @@ export default function Home() {
     setReadabilityPreview(null);
     setWordLens(null);
     setActiveTool(null);
+    stopTTS();
   }
 
   function scrollToSection(id: string) {
@@ -736,8 +1032,7 @@ export default function Home() {
                           setCopied(false);
                           setShowDiacritics(false);
                           setWordLens(null);
-                          window.speechSynthesis?.cancel();
-                          setIsSpeaking(false);
+                          stopTTS();
                         }}
                         className={`result-tab ${resultView === view ? "result-tab-active" : ""}`}
                       >
@@ -752,7 +1047,14 @@ export default function Home() {
                   <div dir={uiLanguage === "ar" ? "rtl" : "ltr"} className="mb-5 flex flex-wrap items-center justify-between gap-3">
                     <p className="text-xs font-bold text-ink/40">{t.result.wordHint}</p>
                     <label className="diacritics-toggle">
-                      <input type="checkbox" checked={showDiacritics} onChange={(event) => setShowDiacritics(event.target.checked)} />
+                      <input
+                        type="checkbox"
+                        checked={showDiacritics}
+                        onChange={(event) => {
+                          stopTTS();
+                          setShowDiacritics(event.target.checked);
+                        }}
+                      />
                       <span>{t.result.diacritics}</span>
                     </label>
                   </div>
@@ -807,8 +1109,11 @@ export default function Home() {
                     </span>
                   </button>
                   <button type="button" onClick={toggleSpeech} className="result-tool">
-                    <span className="tool-mark">{isSpeaking ? "Ⅱ" : "▶"}</span>
-                    <span><strong>{isSpeaking ? t.tools.stopSpeech : t.tools.speech}</strong><small>{t.tools.speechDescription}</small></span>
+                    <span className="tool-mark">{isSpeaking || isSpeechLoading ? "Ⅱ" : "▶"}</span>
+                    <span>
+                      <strong>{isSpeechLoading ? (uiLanguage === "ar" ? "جاري التجهيز..." : "Preparing voice...") : isSpeaking ? t.tools.stopSpeech : t.tools.speech}</strong>
+                      <small aria-live="polite">{speechNotice ? speechNoticeText(speechNotice) : t.tools.speechDescription}</small>
+                    </span>
                   </button>
                   <button type="button" onClick={() => toggleTool("learning")} className={`result-tool ${activeTool === "learning" ? "result-tool-active" : ""}`}>
                     <span className="tool-mark">{uiLanguage === "ar" ? "أ" : "Aa"}</span>

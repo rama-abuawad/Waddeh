@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     ai_model: str = "gemini-3.6-flash"
     ai_fallback_model: str = "gemini-3.5-flash"
+    ai_tts_model: str = "gemini-3.1-flash-tts-preview"
+    ai_tts_arabic_voice: str = "Sulafat"
+    ai_tts_english_voice: str = "Sulafat"
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),

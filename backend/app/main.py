@@ -1,7 +1,7 @@
 import re
 from urllib.parse import unquote
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
@@ -19,6 +19,7 @@ from app.schemas import (
     SimplificationOutput,
     SimplifyRequest,
     SimplifyResponse,
+    SpeechRequest,
     WordExplanation,
     WordExplanationRequest,
 )
@@ -26,6 +27,7 @@ from app.services.gemini import (
     GeminiConfigurationError,
     GeminiService,
     GeminiServiceError,
+    GeminiSpeechError,
     get_gemini_service,
 )
 from app.services.integrity import build_deterministic_integrity_report, combine_integrity_reports
@@ -204,6 +206,41 @@ async def explain_word(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
+        ) from exc
+
+
+@app.post("/api/speech", tags=["reading"])
+async def generate_speech(
+    request: SpeechRequest,
+    service: GeminiService = Depends(get_gemini_service),
+) -> Response:
+    try:
+        audio_bytes = await run_in_threadpool(
+            service.generate_speech,
+            request.text,
+            request.language,
+        )
+        return Response(content=audio_bytes, media_type="audio/wav")
+    except GeminiConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "not_configured",
+                "message": "Cloud voice is not configured.",
+            },
+        ) from exc
+    except GeminiSpeechError as exc:
+        raise HTTPException(
+            status_code=exc.http_status,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except GeminiServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail={
+                "code": "provider_unavailable",
+                "message": "Cloud voice is temporarily unavailable.",
+            },
         ) from exc
 
 

@@ -1,5 +1,6 @@
 import re
 from enum import Enum, IntEnum
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -116,6 +117,19 @@ class ReadabilityRequest(BaseModel):
         cleaned = value.strip()
         if not any("\u0600" <= character <= "\u06ff" for character in cleaned):
             raise ValueError("يجب أن يحتوي النص على حروف عربية.")
+        return cleaned
+
+
+class SpeechRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5_000)
+    language: Literal["ar", "en"]
+
+    @field_validator("text")
+    @classmethod
+    def text_must_not_be_blank(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("النص المطلوب قراءته فارغ.")
         return cleaned
 
 

@@ -11,6 +11,29 @@ export interface ReadingMemorySnapshot {
   difficulty_focus: MeaningThreadKind[];
 }
 
+export type SpeechFailureReason =
+  | "not_configured"
+  | "rate_limited"
+  | "timeout"
+  | "network_error"
+  | "provider_unavailable"
+  | "provider_rejected"
+  | "no_audio"
+  | "invalid_audio"
+  | "unknown";
+
+export class SpeechRequestError extends Error {
+  status: number;
+  reason: SpeechFailureReason;
+
+  constructor(message: string, status: number, reason: SpeechFailureReason) {
+    super(message);
+    this.name = "SpeechRequestError";
+    this.status = status;
+    this.reason = reason;
+  }
+}
+
 export interface SimplifyPayload {
   text: string;
   reader: ReaderType;
@@ -293,4 +316,45 @@ export function explainPoetry(payload: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   }, 90_000);
+}
+
+export async function generateSpeechBlob(
+  text: string,
+  language: "ar" | "en",
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const response = await fetch(`${API_BASE_URL}/api/speech`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, language }),
+    signal,
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as
+      | { detail?: { code?: SpeechFailureReason; message?: string } | string }
+      | null;
+    const detail = body?.detail;
+    const reason =
+      typeof detail === "object" && detail?.code ? detail.code : "unknown";
+    const message =
+      typeof detail === "object" && detail?.message
+        ? detail.message
+        : typeof detail === "string"
+          ? detail
+          : "Cloud voice is temporarily unavailable.";
+
+    throw new SpeechRequestError(message, response.status, reason);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("audio/")) {
+    throw new SpeechRequestError(
+      "Speech endpoint returned a non-audio response.",
+      response.status,
+      "invalid_audio",
+    );
+  }
+
+  return response.blob();
 }

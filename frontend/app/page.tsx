@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 
+import WaddehHero from "@/components/landing/hero";
+import HowItWorks from "@/components/landing/how-it-works";
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
   MeaningThreadKind,
@@ -125,7 +126,6 @@ const learnerLevels = [
 ];
 
 const resultViews: ResultView[] = ["clear", "english", "original"];
-const featureMarks = ["TXT", "PDF", "Aa", "POEM"];
 const SPEECH_CACHE_LIMIT = 10;
 
 type SpeechSessionStatus = "loading" | "playing";
@@ -928,26 +928,6 @@ export default function Home() {
     }, 0);
   }
 
-  function activateFeature(index: number) {
-    if (index === 0) {
-      setSourceMode("text");
-      scrollToSection("workspace");
-      return;
-    }
-    if (index === 1) {
-      setSourceMode("pdf");
-      scrollToSection("workspace");
-      return;
-    }
-    if (index === 2) {
-      setVocabularyOpen(true);
-      return;
-    }
-    if (index === 3) {
-      scrollToSection("poetry");
-    }
-  }
-
   function loadDemoExample() {
     setSourceMode("text");
     setText(exampleText);
@@ -977,33 +957,7 @@ export default function Home() {
       <div className="ambient ambient-one" aria-hidden="true" />
       <div className="ambient ambient-two" aria-hidden="true" />
 
-      <header className="sticky top-0 z-30 border-b border-ink/10 bg-paper/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <a href="#workspace" className="flex items-center gap-3" aria-label={t.homeLabel}>
-            <Image
-              src="/brand/Waddeh_Brand/waddeh-icon.svg"
-              alt=""
-              width={48}
-              height={48}
-              priority
-              className="size-12 shrink-0 rounded-2xl shadow-lg shadow-teal/20"
-            />
-          </a>
-          <div className="header-actions">
-            <button type="button" className="about-header-button" onClick={() => scrollToSection("about")}>
-              {uiLanguage === "ar" ? "عن وضّح" : "About"}
-            </button>
-            <button type="button" className="vocabulary-header-button" onClick={() => setVocabularyOpen(true)}>
-              <span className="vocabulary-label">{t.vocabularyButton}</span>
-              <span aria-label={t.tools.savedCount(savedWords.length)}>{savedWords.length}</span>
-            </button>
-            <div className="language-switch" dir="ltr" aria-label={t.languageLabel} role="group">
-              <button type="button" aria-pressed={uiLanguage === "ar"} onClick={() => setUiLanguage("ar")} className={uiLanguage === "ar" ? "active" : ""}>العربية</button>
-              <button type="button" aria-pressed={uiLanguage === "en"} onClick={() => setUiLanguage("en")} className={uiLanguage === "en" ? "active" : ""}>English</button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <WaddehHero uiLanguage={uiLanguage} onLanguageChange={setUiLanguage} />
 
       {vocabularyOpen && (
         <div className="drawer-backdrop" role="presentation" onMouseDown={() => setVocabularyOpen(false)}>
@@ -1147,53 +1101,25 @@ export default function Home() {
         </div>
       )}
 
-      <div key={uiLanguage} className="page-content relative z-10 mx-auto max-w-[90rem] px-4 pb-16 pt-10 sm:px-6 sm:pt-14">
-        <section className="hero-section">
-          <div className="hero-copy">
-            <p className="hero-kicker">{t.hero.eyebrow}</p>
-            <h1 className="hero-title text-balance text-4xl font-black leading-[1.3] tracking-tight sm:text-5xl lg:text-[3.45rem]">
-              {t.hero.title}<span className="text-teal">{t.hero.accent}</span>
-            </h1>
-            <p className="hero-description mt-5 text-pretty text-base leading-8 text-ink/60 sm:text-lg">
-              {t.hero.description}
-            </p>
-            {t.hero.secondary && <p className="mt-1 text-sm text-ink/40">{t.hero.secondary}</p>}
-            <a href="#workspace" className="hero-cta">
-              <span>{t.hero.cta}</span><span aria-hidden="true">{uiLanguage === "ar" ? "←" : "→"}</span>
-            </a>
-          </div>
+      <HowItWorks uiLanguage={uiLanguage} />
 
-          <div className="feature-stage">
-            <div className="feature-stage-heading">
-              <span>{t.featureShowcase.eyebrow}</span>
-              <h2>{t.featureShowcase.title}</h2>
-              <p>{t.featureShowcase.hint}</p>
-            </div>
-            <div className="feature-list">
-              {t.featureShowcase.items.map((feature, index) => (
-                <button
-                  key={feature.label}
-                  type="button"
-                  onClick={() => activateFeature(index)}
-                  className="feature-node"
-                  style={{ animationDelay: `${140 + index * 55}ms` }}
-                >
-                  <span>
-                    {index === 0 && uiLanguage === "ar"
-                      ? "نص"
-                      : index === 3 && uiLanguage === "ar"
-                        ? "بيت"
-                        : featureMarks[index]}
-                  </span>
-                  <span><strong>{feature.label}</strong><small>{feature.description}</small></span>
-                  <span aria-hidden="true">{uiLanguage === "ar" ? "←" : "→"}</span>
-                </button>
-              ))}
-            </div>
+      <div
+        id="reader"
+        key={uiLanguage}
+        className="page-content relative z-10 mx-auto max-w-[90rem] scroll-mt-6 px-4 pb-16 pt-10 sm:px-6 sm:pt-14"
+      >
+        <div className="mx-auto mb-5 flex max-w-7xl flex-wrap items-center justify-between gap-3">
+          <button type="button" className="vocabulary-header-button" onClick={() => setVocabularyOpen(true)}>
+            <span className="vocabulary-label">{t.vocabularyButton}</span>
+            <span aria-label={t.tools.savedCount(savedWords.length)}>{savedWords.length}</span>
+          </button>
+          <div className="language-switch" dir="ltr" aria-label={t.languageLabel} role="group">
+            <button type="button" aria-pressed={uiLanguage === "ar"} onClick={() => setUiLanguage("ar")} className={uiLanguage === "ar" ? "active" : ""}>العربية</button>
+            <button type="button" aria-pressed={uiLanguage === "en"} onClick={() => setUiLanguage("en")} className={uiLanguage === "en" ? "active" : ""}>English</button>
           </div>
-        </section>
+        </div>
 
-        <section id="workspace" className="mx-auto mt-10 max-w-7xl scroll-mt-6">
+        <section id="workspace" className="mx-auto max-w-7xl scroll-mt-6">
           <JourneyRail
             uiLanguage={uiLanguage}
             hasSource={sourceMode === "pdf" ? Boolean(pdfFile) : text.trim().length >= 20}

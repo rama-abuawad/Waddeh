@@ -2,17 +2,12 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { motion, type Variants } from 'motion/react';
+import { useState } from 'react';
+import { motion } from 'motion/react';
 
 type AuthMode = 'signIn' | 'create';
 type AuthLanguage = 'ar' | 'en';
 
-const authImages = [
-  '/auth/waddeh-reading-1.jpg',
-  '/auth/waddeh-reading-2.jpg',
-  '/auth/waddeh-reading-3.jpg',
-];
 const brandIcon = '/brand/Waddeh_Brand/waddeh-icon.svg';
 
 const copy = {
@@ -20,47 +15,28 @@ const copy = {
     dir: 'rtl',
     product: 'Waddeh',
     languageToggle: 'English',
-    languageLabel: 'العربية',
     eyebrow: 'رفيق القراءة العربية',
-    imageHeadline: 'افهم النص، واحفظ معناه',
-    imageSubhead: 'مسار هادئ من العربية الواضحة إلى النص الأصلي.',
-    scenes: [
-      {
-        alt: 'مسار قراءة عربي واضح مع بطاقات نصية',
-        label: 'عربية واضحة',
-      },
-      {
-        alt: 'جسر بصري بين النص المبسط والنص الأصلي',
-        label: 'جسر للأصل',
-      },
-      {
-        alt: 'ذاكرة قراءة تحفظ المفردات والمعنى',
-        label: 'ذاكرة القراءة',
-      },
-    ],
     modes: {
       signIn: {
         tab: 'تسجيل الدخول',
-        title: ['عد إلى مسارك', 'في وضّح'],
-        accent: 'بثقة.',
-        subtitle: 'تابع ذاكرة القراءة والمفردات من حيث توقفت.',
+        title: 'مرحباً بعودتك',
+        subtitle: 'تابع من حيث توقفت.',
         primary: 'تسجيل الدخول',
         switchPrompt: 'ليس لديك حساب؟',
         switchAction: 'أنشئ حسابًا',
       },
       create: {
         tab: 'إنشاء حساب',
-        title: ['ابدأ ذاكرة قراءة', 'تكبر معك'],
-        accent: 'بوضوح.',
-        subtitle: 'احفظ تقدمك نحو العربية الأصلية.',
+        title: 'أنشئ حسابك',
+        subtitle: 'ابدأ بحفظ تقدمك في قراءة العربية.',
         primary: 'إنشاء حساب',
         switchPrompt: 'لديك حساب؟',
         switchAction: 'تسجيل الدخول',
       },
     },
-    google: 'Google',
-    guest: 'الدخول كضيف',
-    divider: 'أو عبر البريد',
+    google: 'المتابعة باستخدام Google',
+    guest: 'المتابعة كضيف',
+    divider: 'أو',
     email: 'البريد الإلكتروني',
     emailPlaceholder: 'name@example.com',
     password: 'كلمة المرور',
@@ -70,47 +46,28 @@ const copy = {
     dir: 'ltr',
     product: 'Waddeh',
     languageToggle: 'العربية',
-    languageLabel: 'English',
     eyebrow: 'Adaptive Arabic reading',
-    imageHeadline: 'Understand the text, keep the meaning',
-    imageSubhead: 'A calm path from clear Arabic back to the original.',
-    scenes: [
-      {
-        alt: 'A clear Arabic reading path with layered text cards',
-        label: 'Clear Arabic',
-      },
-      {
-        alt: 'A visual bridge between simplified and original Arabic text',
-        label: 'Bridge to original',
-      },
-      {
-        alt: 'Reading memory preserving vocabulary and meaning',
-        label: 'Reading Memory',
-      },
-    ],
     modes: {
       signIn: {
         tab: 'Sign in',
-        title: ['Return to', 'Waddeh'],
-        accent: 'with clarity.',
-        subtitle: 'Pick up your reading memory and vocabulary.',
+        title: 'Welcome back',
+        subtitle: 'Continue where you left off.',
         primary: 'Sign in',
         switchPrompt: 'New to Waddeh?',
         switchAction: 'Create account',
       },
       create: {
         tab: 'Create account',
-        title: ['Start your', 'reading memory'],
-        accent: 'gently.',
-        subtitle: 'Save progress toward authentic Arabic.',
+        title: 'Create your account',
+        subtitle: 'Start saving your Arabic reading progress.',
         primary: 'Create account',
         switchPrompt: 'Already have an account?',
         switchAction: 'Sign in',
       },
     },
-    google: 'Google',
-    guest: 'Guest access',
-    divider: 'Or continue with email',
+    google: 'Continue with Google',
+    guest: 'Continue as guest',
+    divider: 'or',
     email: 'Email',
     emailPlaceholder: 'name@example.com',
     password: 'Password',
@@ -142,113 +99,40 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export default function Auth11() {
   const [mode, setMode] = useState<AuthMode>('signIn');
   const [language, setLanguage] = useState<AuthLanguage>('ar');
-  const [activeImage, setActiveImage] = useState(0);
 
   const content = copy[language];
   const modeCopy = content.modes[mode];
   const direction = content.dir;
 
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setActiveImage((current) => (current + 1) % authImages.length);
-    }, 4800);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const containerVariants: Variants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-        delayChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants: Variants = {
-    hidden: { opacity: 0, y: 15 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        type: 'spring',
-        stiffness: 300,
-        damping: 24,
-      },
-    },
-  };
-
   return (
     <main
       dir="ltr"
-      className="flex min-h-dvh w-full flex-col overflow-hidden bg-[#fbfaf5] font-sans text-[#17372f] antialiased selection:bg-[#0e6b5c]/20 selection:text-[#17372f] dark:bg-[#050505] dark:text-neutral-200 dark:selection:bg-white/20 dark:selection:text-white lg:flex-row"
+      className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden bg-[#fbfaf5] px-6 py-20 font-sans text-[#17372f] antialiased selection:bg-[#0e6b5c]/20 selection:text-[#17372f] dark:bg-[#050505] dark:text-neutral-200 dark:selection:bg-white/20 dark:selection:text-white sm:px-10 sm:py-12"
     >
-      <section className="relative hidden w-full flex-col justify-end p-4 lg:flex lg:min-h-dvh lg:w-[52%] xl:w-[54%]">
-        <div className="relative h-full min-h-[calc(100dvh-2rem)] w-full overflow-hidden rounded-[32px] border border-[#17372f]/10 bg-[#0d3f36] shadow-2xl dark:border-white/10 dark:bg-[#050505]">
-          <motion.img
-            key={authImages[activeImage]}
-            src={authImages[activeImage]}
-            alt={content.scenes[activeImage].alt}
-            initial={{ opacity: 0, scale: 1.025 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="absolute inset-0 bg-linear-to-t from-[#12362f]/92 via-[#12362f]/22 to-transparent dark:from-[#050505] dark:via-[#050505]/20" />
+      <div
+        aria-hidden="true"
+        className="absolute left-1/2 top-1/2 h-[26rem] w-[26rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#41b78c]/[0.08] blur-3xl dark:bg-[#41b78c]/10"
+      />
 
-          <div
-            dir={direction}
-            className="absolute right-0 bottom-0 left-0 z-10 flex w-full flex-col items-center justify-center px-8 pb-12 text-center"
-          >
-            <motion.p
-              key={`${language}-${activeImage}-label`}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-              className="mb-4 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-bold text-white/80 backdrop-blur-md"
-            >
-              {content.scenes[activeImage].label}
-            </motion.p>
-            <h1 className="max-w-[34rem] text-3xl leading-tight font-medium tracking-normal text-balance text-white md:text-4xl lg:text-5xl">
-              {content.imageHeadline}
-            </h1>
-            <p className="mt-4 max-w-[28rem] text-sm leading-7 text-white/70">
-              {content.imageSubhead}
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-2">
-              {authImages.map((image, index) => (
-                <button
-                  key={image}
-                  type="button"
-                  aria-label={`Show image ${index + 1}`}
-                  aria-pressed={activeImage === index}
-                  onClick={() => setActiveImage(index)}
-                  className={`h-1 rounded-full transition-all ${
-                    activeImage === index ? 'w-7 bg-white' : 'w-2 bg-white/40'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <button
+        type="button"
+        onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+        className="absolute right-5 top-5 z-10 rounded-xl border border-[#17372f]/10 bg-white/45 px-3.5 py-2 text-xs font-black text-[#0e6b5c] transition-colors hover:border-[#0e6b5c]/25 hover:bg-white/75 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10 sm:right-8 sm:top-8"
+      >
+        {content.languageToggle}
+      </button>
 
       <section
         dir={direction}
-        className="flex min-h-dvh w-full flex-col items-center justify-center px-6 py-8 text-start sm:px-10 lg:w-[48%] lg:px-12 lg:py-2 xl:w-[46%]"
+        className="relative z-10 flex w-full justify-center text-start"
       >
         <motion.div
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="w-full max-w-[408px]"
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: 'easeOut' }}
+          className="w-full max-w-[460px]"
         >
-          <motion.div
-            variants={itemVariants}
-            className="mb-6 flex items-center justify-between gap-4"
-          >
+          <div className="mb-8 flex items-center gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <Image
                 src={brandIcon}
@@ -259,7 +143,7 @@ export default function Auth11() {
                 className="size-11 shrink-0 rounded-2xl shadow-[0_12px_28px_rgba(14,107,92,0.18)]"
               />
               <div>
-                <p className="text-sm font-black text-[#17372f] dark:text-white">
+                <p className="text-base font-black text-[#17372f] dark:text-white">
                   {content.product}
                 </p>
                 <p className="mt-0.5 text-xs font-bold text-[#17372f]/50 dark:text-neutral-500">
@@ -267,25 +151,18 @@ export default function Auth11() {
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
-              className="rounded-full border border-[#17372f]/10 bg-white/75 px-4 py-2 text-xs font-black text-[#0e6b5c] shadow-sm transition-transform hover:-translate-y-0.5 dark:border-white/10 dark:bg-[#141414] dark:text-white"
-            >
-              {content.languageToggle}
-            </button>
-          </motion.div>
+          </div>
 
-          <motion.div variants={itemVariants} className="mb-6 text-start">
-            <div className="mb-5 inline-flex rounded-full border border-[#17372f]/10 bg-white/75 p-1 shadow-sm dark:border-white/10 dark:bg-[#141414]">
+          <div className="mb-7 text-start">
+            <div className="mb-6 flex gap-7 border-b border-[#17372f]/10 dark:border-white/10">
               {(['signIn', 'create'] as const).map((authMode) => (
                 <button
                   key={authMode}
                   type="button"
                   onClick={() => setMode(authMode)}
-                  className={`rounded-full px-4 py-2 text-xs font-black transition-all ${
+                  className={`relative px-1 pb-3 text-sm font-black transition-colors ${
                     mode === authMode
-                      ? 'bg-[#17372f] text-white shadow-sm dark:bg-white dark:text-[#050505]'
+                      ? 'text-[#0e6b5c] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:rounded-full after:bg-[#0e6b5c] dark:text-white dark:after:bg-white'
                       : 'text-[#17372f]/55 hover:text-[#17372f] dark:text-neutral-500 dark:hover:text-white'
                   }`}
                 >
@@ -293,57 +170,46 @@ export default function Auth11() {
                 </button>
               ))}
             </div>
-            <h2 className="text-3xl leading-tight font-medium tracking-normal text-balance text-[#17372f] md:text-[36px] dark:text-white">
-              {modeCopy.title[0]}
-              <br />
-              {modeCopy.title[1]}{' '}
-              <span className="font-serif font-light italic">
-                {modeCopy.accent}
-              </span>
+            <h2 className="text-3xl leading-tight font-black tracking-normal text-balance text-[#17372f] dark:text-white">
+              {modeCopy.title}
             </h2>
-            <p className="mt-4 max-w-[24rem] text-sm leading-7 text-[#17372f]/60 dark:text-neutral-400">
+            <p className="mt-2 max-w-[24rem] text-sm leading-6 text-[#17372f]/58 dark:text-neutral-400">
               {modeCopy.subtitle}
             </p>
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={itemVariants}
-            className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2"
-          >
+          <div className="mb-6 grid gap-3">
             <button
               type="button"
-              className="flex min-h-12 items-center justify-center gap-2 rounded-full border border-[#17372f]/10 bg-white px-3 py-3 text-xs font-bold leading-none text-[#17372f] shadow-sm transition-transform hover:-translate-y-0.5 hover:bg-[#f5fbf8] active:scale-[0.98] dark:border-white/10 dark:bg-[#141414] dark:text-white dark:hover:bg-[#1f1f1f]"
+              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl border border-[#17372f]/10 bg-white/70 px-4 py-3 text-sm font-black leading-none text-[#17372f] transition-colors hover:border-[#0e6b5c]/25 hover:bg-white active:bg-[#f5fbf8] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
             >
               <GoogleIcon className="text-[16px]" />
-              <span className="whitespace-nowrap">{content.google}</span>
+              <span>{content.google}</span>
             </button>
             <Link
               href="/"
-              className="flex min-h-12 items-center justify-center rounded-full border border-[#0e6b5c]/20 bg-[#e4f2eb] px-3 py-3 text-xs font-black leading-none text-[#0e6b5c] transition-transform hover:-translate-y-0.5 hover:bg-[#d8ece4] active:scale-[0.98] dark:border-white/10 dark:bg-[#141414] dark:text-white dark:hover:bg-[#1f1f1f]"
+              className="flex min-h-[50px] w-full items-center justify-center rounded-2xl border border-[#0e6b5c]/16 bg-[#e4f2eb]/70 px-4 py-3 text-sm font-black leading-none text-[#0e6b5c] transition-colors hover:border-[#0e6b5c]/28 hover:bg-[#d8ece4] active:bg-[#cfe5dc] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
             >
               {content.guest}
             </Link>
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={itemVariants}
-            className="relative mb-6 flex items-center"
-          >
+          <div className="relative mb-6 flex items-center">
             <div className="grow border-t border-[#17372f]/10 dark:border-white/10"></div>
-            <span className="px-4 text-[11px] font-black tracking-normal text-[#17372f]/45 dark:text-neutral-500">
+            <span className="px-4 text-xs font-black tracking-normal text-[#17372f]/38 dark:text-neutral-500">
               {content.divider}
             </span>
             <div className="grow border-t border-[#17372f]/10 dark:border-white/10"></div>
-          </motion.div>
+          </div>
 
           <form
             className="flex flex-col gap-4"
             onSubmit={(event) => event.preventDefault()}
           >
-            <motion.div variants={itemVariants} className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <label
                 htmlFor="email"
-                className="text-sm font-black text-[#17372f] dark:text-neutral-200"
+                className="text-sm font-black text-[#17372f]/86 dark:text-neutral-200"
               >
                 {content.email}
               </label>
@@ -352,14 +218,14 @@ export default function Auth11() {
                 type="email"
                 autoComplete="email"
                 placeholder={content.emailPlaceholder}
-                className="w-full rounded-[14px] border border-[#17372f]/10 bg-white px-4 py-3 text-sm text-[#17372f] transition-colors placeholder:text-[#17372f]/35 focus:border-[#0e6b5c]/45 focus:bg-white focus:ring-1 focus:ring-[#0e6b5c]/35 focus:outline-none dark:border-white/10 dark:bg-[#0a0a0a] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-neutral-500 dark:focus:bg-[#111] dark:focus:ring-neutral-500"
+                className="h-[52px] w-full rounded-2xl border border-[#17372f]/12 bg-white/68 px-4 text-sm text-[#17372f] transition-colors placeholder:text-[#17372f]/35 focus:border-[#0e6b5c]/60 focus:bg-white focus:ring-2 focus:ring-[#0e6b5c]/12 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-[#8ee2c1]/50 dark:focus:bg-white/[0.08] dark:focus:ring-[#8ee2c1]/10"
               />
-            </motion.div>
+            </div>
 
-            <motion.div variants={itemVariants} className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <label
                 htmlFor="password"
-                className="text-sm font-black text-[#17372f] dark:text-neutral-200"
+                className="text-sm font-black text-[#17372f]/86 dark:text-neutral-200"
               >
                 {content.password}
               </label>
@@ -370,24 +236,21 @@ export default function Auth11() {
                   mode === 'signIn' ? 'current-password' : 'new-password'
                 }
                 placeholder={content.passwordPlaceholder}
-                className="w-full rounded-[14px] border border-[#17372f]/10 bg-white px-4 py-3 text-sm text-[#17372f] transition-colors placeholder:text-[#17372f]/35 focus:border-[#0e6b5c]/45 focus:bg-white focus:ring-1 focus:ring-[#0e6b5c]/35 focus:outline-none dark:border-white/10 dark:bg-[#0a0a0a] dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-neutral-500 dark:focus:bg-[#111] dark:focus:ring-neutral-500"
+                className="h-[52px] w-full rounded-2xl border border-[#17372f]/12 bg-white/68 px-4 text-sm text-[#17372f] transition-colors placeholder:text-[#17372f]/35 focus:border-[#0e6b5c]/60 focus:bg-white focus:ring-2 focus:ring-[#0e6b5c]/12 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-[#8ee2c1]/50 dark:focus:bg-white/[0.08] dark:focus:ring-[#8ee2c1]/10"
               />
-            </motion.div>
+            </div>
 
-            <motion.div variants={itemVariants} className="mt-3">
+            <div className="mt-2">
               <button
                 type="submit"
-                className="w-full rounded-full bg-[#0e6b5c] py-3.5 text-sm font-black text-white shadow-[0_16px_36px_rgba(14,107,92,0.22)] transition-transform hover:bg-[#17372f] active:scale-[0.98] dark:bg-[#eaeaea] dark:text-black dark:shadow-[0_0_20px_rgba(255,255,255,0.05)] dark:hover:bg-white"
+                className="h-[52px] w-full rounded-2xl bg-[#0e6b5c] px-4 text-sm font-black text-white transition-colors hover:bg-[#17372f] active:bg-[#0a574b] dark:bg-[#eaeaea] dark:text-black dark:hover:bg-white"
               >
                 {modeCopy.primary}
               </button>
-            </motion.div>
+            </div>
           </form>
 
-          <motion.div
-            variants={itemVariants}
-            className="mt-5 text-[13px] font-bold text-[#17372f]/55 dark:text-neutral-400"
-          >
+          <div className="mt-6 text-center text-[13px] font-bold text-[#17372f]/52 dark:text-neutral-400">
             {modeCopy.switchPrompt}{' '}
             <button
               type="button"
@@ -396,7 +259,7 @@ export default function Auth11() {
             >
               {modeCopy.switchAction}
             </button>
-          </motion.div>
+          </div>
         </motion.div>
       </section>
     </main>

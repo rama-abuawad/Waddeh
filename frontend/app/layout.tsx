@@ -8,6 +8,15 @@ export const metadata: Metadata = {
   description: "وضّح يحوّل النصوص العربية الصعبة إلى عربية واضحة وترجمة إنجليزية دقيقة.",
   applicationName: "وضّح",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/brand/Waddeh_Brand/waddeh-icon-32.png", sizes: "32x32", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [{ url: "/apple-icon.png", sizes: "512x512", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="260" viewBox="0 0 980 260" role="img" aria-label="Waddeh horizontal logo">
+  <defs>
+    <linearGradient id="bg2" x1="20" y1="10" x2="210" y2="225" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#11A789"/>
+      <stop offset="0.42" stop-color="#0F806C"/>
+      <stop offset="1" stop-color="#064F46"/>
+    </linearGradient>
+    <linearGradient id="wave2" x1="25" y1="220" x2="220" y2="145" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9F4EC"/>
+      <stop offset="0.6" stop-color="#9DE5D2"/>
+      <stop offset="1" stop-color="#11A789"/>
+    </linearGradient>
+    <clipPath id="clip2"><rect x="24" y="24" width="212" height="212" rx="52"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#clip2)">
+    <rect x="24" y="24" width="212" height="212" rx="52" fill="url(#bg2)"/>
+    <path d="M24 196 C76 213 125 205 165 173 C194 150 211 124 236 110 L236 236 L24 236 Z"
+          fill="#053E38" opacity="0.68"/>
+    <path d="M24 236 C72 215 104 204 129 193 C165 177 183 151 204 137 C218 128 228 123 236 120 L236 236 Z"
+          fill="url(#wave2)"/>
+  </g>
+
+  <!-- Resized icon mark -->
+  <g transform="translate(-126.5 -90.7) scale(0.42)">
+    <g transform="translate(153.215 251.138) scale(0.369532 -0.369532)">
+      <path d="M49 -231 23 -78Q132 -70 202.5 -42.5Q273 -15 304 35Q268 22 225 22Q181 22 142.0 37.5Q103 53 79.0 87.0Q55 121 55 175Q55 220 69.5 265.0Q84 310 112.0 348.0Q140 386 179.5 409.0Q219 432 268 432Q324 432 366.0 406.5Q408 381 435.5 339.0Q463 297 476.5 245.5Q490 194 490 141Q490 -18 381.0 -117.0Q272 -216 49 -231ZM213 205Q213 181 226.0 168.5Q239 156 270 156Q281 156 296.0 158.5Q311 161 326 167Q321 223 304.0 253.0Q287 283 263 283Q247 283 236.0 270.0Q225 257 219.0 238.5Q213 220 213 205Z" fill="#FFFFFF"/>
+    </g>
+  </g>
+
+  <line x1="286" y1="54" x2="286" y2="207" stroke="#9DE5D2" stroke-width="2" opacity="0.9"/>
+  <text x="328" y="112" fill="#073F38" font-family="Noto Sans Arabic, Tahoma, Arial, sans-serif"
+        font-size="82" font-weight="800" direction="rtl" unicode-bidi="bidi-override">وضّح</text>
+  <text x="331" y="158" fill="#7B858B" font-family="Inter, Arial, sans-serif"
+        font-size="29" font-weight="700" letter-spacing="8">WADDEH</text>
+  <line x1="331" y1="181" x2="785" y2="181" stroke="#BFC8C5"/>
+  <text x="331" y="217" fill="#7B858B" font-family="Inter, Arial, sans-serif"
+        font-size="25">Adaptive Arabic reading</text>
+</svg>

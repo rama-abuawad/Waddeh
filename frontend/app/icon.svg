@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Waddeh logo icon">
+  <defs>
+    <linearGradient id="bg" x1="70" y1="40" x2="452" y2="476" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#11A789"/>
+      <stop offset="0.42" stop-color="#0F806C"/>
+      <stop offset="1" stop-color="#064F46"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="82" y1="420" x2="458" y2="284" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#D9F4EC"/>
+      <stop offset="0.55" stop-color="#9DE5D2"/>
+      <stop offset="1" stop-color="#11A789"/>
+    </linearGradient>
+    <linearGradient id="waveDark" x1="80" y1="410" x2="468" y2="250" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#053E38" stop-opacity="0.93"/>
+      <stop offset="1" stop-color="#064F46" stop-opacity="0.30"/>
+    </linearGradient>
+    <clipPath id="clip">
+      <rect x="24" y="24" width="464" height="464" rx="112"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#clip)">
+    <rect x="24" y="24" width="464" height="464" rx="112" fill="url(#bg)"/>
+    <!-- Soft upper lighting -->
+    <ellipse cx="205" cy="104" rx="255" ry="205" fill="#42CFB2" opacity="0.12"/>
+
+    <!-- Dark fold -->
+    <path d="M 30 411
+             C 144 438, 250 423, 329 360
+             C 390 311, 423 252, 488 218
+             L 488 488 L 24 488 Z"
+          fill="url(#waveDark)"/>
+
+    <!-- Mint page / clarity fold -->
+    <path d="M 26 489
+             C 117 449, 174 432, 230 409
+             C 306 377, 340 325, 381 296
+             C 416 271, 450 257, 488 244
+             L 488 488 Z"
+          fill="url(#wave)" opacity="0.98"/>
+
+    <!-- Thin bright accent curve -->
+    <path d="M 71 472
+             C 178 434, 258 409, 319 361
+             C 366 324, 398 284, 461 257"
+          fill="none" stroke="#C8F4E7" stroke-width="5" stroke-linecap="round" opacity="0.55"/>
+
+    <g transform="translate(153.215 251.138) scale(0.369532 -0.369532)">
+      <path d="M49 -231 23 -78Q132 -70 202.5 -42.5Q273 -15 304 35Q268 22 225 22Q181 22 142.0 37.5Q103 53 79.0 87.0Q55 121 55 175Q55 220 69.5 265.0Q84 310 112.0 348.0Q140 386 179.5 409.0Q219 432 268 432Q324 432 366.0 406.5Q408 381 435.5 339.0Q463 297 476.5 245.5Q490 194 490 141Q490 -18 381.0 -117.0Q272 -216 49 -231ZM213 205Q213 181 226.0 168.5Q239 156 270 156Q281 156 296.0 158.5Q311 161 326 167Q321 223 304.0 253.0Q287 283 263 283Q247 283 236.0 270.0Q225 257 219.0 238.5Q213 220 213 205Z" fill="#FFFFFF"/>
+    </g>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
@@ -979,11 +980,14 @@ export default function Home() {
       <header className="sticky top-0 z-30 border-b border-ink/10 bg-paper/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <a href="#workspace" className="flex items-center gap-3" aria-label={t.homeLabel}>
-            <span className="grid size-11 place-items-center rounded-2xl bg-teal text-xl font-bold text-white shadow-lg shadow-teal/20">{uiLanguage === "ar" ? "و" : "W"}</span>
-            <span>
-              <span className="block text-xl font-black leading-none">{uiLanguage === "ar" ? "وضّح" : "Waddeh"}</span>
-              <span className="mt-1 block text-[10px] font-bold uppercase tracking-[0.2em] text-ink/40">{uiLanguage === "ar" ? "Waddeh" : "وضّح"}</span>
-            </span>
+            <Image
+              src="/brand/Waddeh_Brand/waddeh-icon.svg"
+              alt=""
+              width={48}
+              height={48}
+              priority
+              className="size-12 shrink-0 rounded-2xl shadow-lg shadow-teal/20"
+            />
           </a>
           <div className="header-actions">
             <button type="button" className="about-header-button" onClick={() => scrollToSection("about")}>

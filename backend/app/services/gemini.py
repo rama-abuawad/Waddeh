@@ -445,6 +445,8 @@ class GeminiService:
                 "GEMINI_API_KEY is missing. Add it to the root .env file."
             )
 
+        attempted_model = self.model
+        fallback_attempted = False
         try:
             # Connect directly to Gemini. Local development tools can inject a
             # loopback proxy that is not available to the running API process.
@@ -465,6 +467,8 @@ class GeminiService:
                     logger.warning(
                         "Gemini primary model rate limited; retrying configured fallback."
                     )
+                    attempted_model = self.fallback_model
+                    fallback_attempted = True
                     response = self._post_interaction(
                         client=client,
                         model=self.fallback_model,
@@ -476,6 +480,17 @@ class GeminiService:
             return output_model.model_validate_json(output_text)
         except GeminiConfigurationError:
             raise
+        except httpx.HTTPStatusError as exc:
+            logger.error(
+                "Gemini request failed with upstream HTTP status %s "
+                "model=%s fallback_attempted=%s",
+                exc.response.status_code,
+                attempted_model,
+                fallback_attempted,
+            )
+            raise GeminiServiceError(
+                "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
+            ) from exc
         except Exception as exc:
             logger.error("Gemini request failed (%s).", type(exc).__name__)
             raise GeminiServiceError(
@@ -547,20 +562,86 @@ class GeminiService:
                     field for field in required if field != "adaptation_strategy"
                 ]
 
-        return cls._sanitize_response_schema(schema)
+        defs = schema.get("$defs")
+        return cls._sanitize_response_schema(
+            schema,
+            defs=defs if isinstance(defs, dict) else {},
+        )
 
     @classmethod
-    def _sanitize_response_schema(cls, node: Any) -> Any:
+    def _sanitize_response_schema(
+        cls,
+        node: Any,
+        *,
+        defs: dict[str, Any] | None = None,
+        resolving: tuple[str, ...] = (),
+    ) -> Any:
         if isinstance(node, list):
-            return [cls._sanitize_response_schema(item) for item in node]
+            return [
+                cls._sanitize_response_schema(item, defs=defs, resolving=resolving)
+                for item in node
+            ]
         if not isinstance(node, dict):
             return node
 
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/") and defs:
+            name = ref.removeprefix("#/$defs/")
+            if name in defs and name not in resolving:
+                resolved = cls._sanitize_response_schema(
+                    defs[name],
+                    defs=defs,
+                    resolving=(*resolving, name),
+                )
+                siblings = {
+                    key: value
+                    for key, value in node.items()
+                    if key != "$ref"
+                }
+                if siblings and isinstance(resolved, dict):
+                    sanitized_siblings = cls._sanitize_response_schema(
+                        siblings,
+                        defs=defs,
+                        resolving=resolving,
+                    )
+                    return {**resolved, **sanitized_siblings}
+                return resolved
+
         sanitized: dict[str, Any] = {}
         for key, value in node.items():
-            if key in {"title", "description", "default", "examples"}:
+            if key in {
+                "$defs",
+                "title",
+                "description",
+                "default",
+                "examples",
+                "maxLength",
+                "minLength",
+                "pattern",
+                "maxItems",
+                "minItems",
+                "maximum",
+                "minimum",
+                "exclusiveMaximum",
+                "exclusiveMinimum",
+                "multipleOf",
+                "prefixItems",
+            }:
                 continue
-            sanitized[key] = cls._sanitize_response_schema(value)
+            sanitized[key] = cls._sanitize_response_schema(
+                value,
+                defs=defs,
+                resolving=resolving,
+            )
+
+        properties = sanitized.get("properties")
+        required = sanitized.get("required")
+        if isinstance(properties, dict) and isinstance(required, list):
+            sanitized["required"] = [
+                field
+                for field in required
+                if isinstance(field, str) and field in properties
+            ]
 
         if sanitized.get("type") == "integer" and "enum" in sanitized:
             sanitized.pop("enum", None)

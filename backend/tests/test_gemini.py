@@ -1,8 +1,10 @@
 import base64
 import io
+import logging
 import wave
 from unittest.mock import Mock, patch
 
+import httpx
 import pytest
 from pydantic import BaseModel
 
@@ -43,11 +45,43 @@ def test_gemini_client_ignores_unavailable_environment_proxy() -> None:
 
 def test_simplification_schema_is_gemini_compatible() -> None:
     schema = GeminiService._response_schema(SimplificationOutput)
+    schema_text = str(schema)
 
     assert "adaptation_strategy" not in schema["properties"]
     assert "adaptation_strategy" not in schema["required"]
-    assert "enum" not in schema["$defs"]["SimplificationLevel"]
+    assert "$defs" not in schema
+    assert "$ref" not in schema_text
+    assert "AdaptationStrategy" not in schema_text
+    assert "enum" not in schema["properties"]["bridge"]["properties"]["current_level"]
+    assert schema["properties"]["meaning_threads"]["items"]["properties"]["kind"][
+        "enum"
+    ] == [
+        "pronoun",
+        "actor",
+        "connector",
+        "negation",
+        "condition",
+        "reference",
+    ]
     assert "title" not in schema
+    assert "maxLength" not in schema_text
+    assert "minLength" not in schema_text
+    assert "pattern" not in schema_text
+    assert "maxItems" not in schema_text
+    assert "minItems" not in schema_text
+    assert "maximum" not in schema_text
+    assert "minimum" not in schema_text
+
+
+def test_simplification_schema_preserves_v3_learning_fields() -> None:
+    schema = GeminiService._response_schema(SimplificationOutput)
+
+    assert "meaning_threads" in schema["properties"]
+    assert schema["properties"]["meaning_threads"]["items"]["type"] == "object"
+    comprehension_check = schema["properties"]["comprehension_check"]
+    assert comprehension_check["properties"]["choices"]["items"]["type"] == "string"
+    assert comprehension_check["properties"]["correct_choice_index"]["type"] == "integer"
+    assert schema["properties"]["bridge"]["properties"]["levels"]["items"]["type"] == "object"
 
 
 def test_simplification_prompt_uses_reading_memory_and_meaning_threads() -> None:
@@ -93,6 +127,81 @@ def test_gemini_retries_configured_fallback_after_rate_limit() -> None:
         "gemini-fallback",
     ]
     fallback_response.raise_for_status.assert_called_once_with()
+
+
+def test_gemini_logs_safe_http_status_for_primary_failure(caplog: pytest.LogCaptureFixture) -> None:
+    request = httpx.Request(
+        "POST",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+    )
+    response = httpx.Response(
+        403,
+        request=request,
+        json={"error": {"message": "provider body must not be logged"}},
+    )
+
+    client = Mock()
+    client.post.return_value = response
+
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    caplog.set_level(logging.ERROR, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService(
+                "test-key",
+                "gemini-primary",
+                fallback_model="gemini-fallback",
+            )._generate("test input", ExampleOutput)
+
+    assert "upstream HTTP status 403" in caplog.text
+    assert "model=gemini-primary" in caplog.text
+    assert "fallback_attempted=False" in caplog.text
+    assert "provider body must not be logged" not in caplog.text
+    assert "test input" not in caplog.text
+    assert "test-key" not in caplog.text
+    assert "x-goog-api-key" not in caplog.text
+
+
+def test_gemini_logs_safe_http_status_for_fallback_failure(caplog: pytest.LogCaptureFixture) -> None:
+    request = httpx.Request(
+        "POST",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+    )
+    rate_limited = httpx.Response(429, request=request)
+    fallback_failed = httpx.Response(
+        503,
+        request=request,
+        json={"error": {"message": "fallback body must not be logged"}},
+    )
+
+    client = Mock()
+    client.post.side_effect = [rate_limited, fallback_failed]
+
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    caplog.set_level(logging.ERROR, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService(
+                "test-key",
+                "gemini-primary",
+                fallback_model="gemini-fallback",
+            )._generate("test input", ExampleOutput)
+
+    assert "upstream HTTP status 503" in caplog.text
+    assert "model=gemini-fallback" in caplog.text
+    assert "fallback_attempted=True" in caplog.text
+    assert "fallback body must not be logged" not in caplog.text
+    assert "test input" not in caplog.text
+    assert "test-key" not in caplog.text
+    assert "x-goog-api-key" not in caplog.text
 
 
 def test_gemini_tts_extracts_documented_output_audio_first() -> None:

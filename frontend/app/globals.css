@@ -1522,6 +1522,122 @@ button {
   line-height: 1.4rem;
 }
 
+.result-tool-cultural .tool-mark {
+  background: #fff2d9;
+  color: #8a5a16;
+}
+
+.cultural-meaning-list {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+
+.cultural-meaning-list > article {
+  overflow: hidden;
+  border: 1px solid rgba(138, 90, 22, 0.14);
+  border-radius: 1.1rem;
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 8px 24px rgba(23, 55, 47, 0.04);
+}
+
+.cultural-meaning-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.cultural-meaning-heading span,
+.cultural-meaning-heading small {
+  border-radius: 9999px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+}
+
+.cultural-meaning-heading span {
+  background: #fff2d9;
+  color: #8a5a16;
+}
+
+.cultural-meaning-heading small {
+  background: #eef7f2;
+  color: #0e6b5c;
+}
+
+.cultural-meaning-list blockquote {
+  position: relative;
+  margin-top: 0.85rem;
+  border-inline-start: 3px solid #e1b85b;
+  border-radius: 0.85rem;
+  background: #fbf8f0;
+  padding: 0.85rem 1rem;
+  color: #17372f;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.9rem;
+}
+
+.cultural-meaning-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+}
+
+.cultural-meaning-grid section,
+.cultural-meaning-context,
+.cultural-meaning-english,
+.cultural-meaning-equivalent {
+  border: 1px solid rgba(23, 55, 47, 0.07);
+  border-radius: 0.85rem;
+  background: #faf8f2;
+  padding: 0.8rem;
+}
+
+.cultural-meaning-grid small,
+.cultural-meaning-context small,
+.cultural-meaning-english small,
+.cultural-meaning-equivalent small {
+  display: block;
+  color: rgba(23, 55, 47, 0.46);
+  font-size: 0.61rem;
+  font-weight: 900;
+}
+
+.cultural-meaning-grid p,
+.cultural-meaning-context p,
+.cultural-meaning-english p,
+.cultural-meaning-equivalent p {
+  margin-top: 0.35rem;
+  color: rgba(23, 55, 47, 0.75);
+  font-size: 0.76rem;
+  line-height: 1.55rem;
+}
+
+.cultural-meaning-grid .cultural-meaning-intended {
+  border-color: rgba(65, 183, 140, 0.2);
+  background: #eef7f2;
+}
+
+.cultural-meaning-intended p {
+  color: #17372f;
+  font-weight: 800;
+}
+
+.cultural-meaning-context,
+.cultural-meaning-english,
+.cultural-meaning-equivalent {
+  margin-top: 0.65rem;
+}
+
+.cultural-meaning-equivalent {
+  border-color: rgba(225, 184, 91, 0.24);
+  background: #fffaf0;
+}
+
 .result-footer {
   display: flex;
   align-items: center;
@@ -2700,6 +2816,10 @@ button {
   gap: 1rem;
 }
 
+.poetry-cultural-section {
+  margin-top: 1.5rem;
+}
+
 .poetry-result-heading {
   justify-content: flex-start;
   border-bottom: 1px solid rgba(23, 55, 47, 0.08);
@@ -3171,6 +3291,10 @@ button {
   .change-map-list article > span {
     transform: rotate(-90deg);
     justify-self: start;
+  }
+
+  .cultural-meaning-grid {
+    grid-template-columns: 1fr;
   }
 
   .saved-vocabulary > div > span {

@@ -64,6 +64,7 @@ Returns `SimplifyResponse`:
 - `learning_cards`.
 - `change_map`.
 - `meaning_threads`: confident sentence relations with Arabic and English explanations.
+- `cultural_meanings`: zero to four source-grounded idioms, proverbs, metaphors, or cultural references with literal meaning, intended meaning, concise context, English support, an optional close English expression, and confidence.
 - `bridge`.
 - `meaning_integrity`.
 - `comprehension_check`, including three aligned Arabic/English answer choices and the validated correct-choice index.
@@ -107,3 +108,20 @@ Returns contextual Word Lens data:
 - English support.
 - Optional Arabic example.
 - Confidence.
+
+## `POST /api/poetry/explain`
+
+Request:
+
+```json
+{
+  "text": "Arabic verse or a short poem",
+  "reader": "child | general_reader | non_arabic_speaker",
+  "level": 2
+}
+```
+
+Returns the poem's concise Arabic and English overview, complete English translation,
+line-by-line meaning, contextual vocabulary, and `cultural_meanings`. The cultural list
+contains only source-grounded poetic images, idioms, proverbs, or cultural references;
+it is empty when the poem does not need beyond-literal context.

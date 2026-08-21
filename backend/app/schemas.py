@@ -60,6 +60,13 @@ class MeaningThreadKind(str, Enum):
     reference = "reference"
 
 
+class CulturalMeaningKind(str, Enum):
+    idiom = "idiom"
+    proverb = "proverb"
+    metaphor = "metaphor"
+    cultural_reference = "cultural_reference"
+
+
 class ReadingMemorySnapshot(BaseModel):
     mastered_terms: list[str] = Field(default_factory=list, max_length=16)
     learning_terms: list[str] = Field(default_factory=list, max_length=16)
@@ -192,6 +199,43 @@ class MeaningThread(BaseModel):
     explanation_english: str = Field(max_length=420)
 
 
+class CulturalMeaningItem(BaseModel):
+    expression: str = Field(
+        max_length=180,
+        description="An exact Arabic expression quoted from the source text.",
+    )
+    kind: CulturalMeaningKind
+    literal_meaning: str = Field(
+        max_length=300,
+        description="The expression's literal meaning in clear, natural Arabic.",
+    )
+    literal_meaning_english: str = Field(
+        max_length=360,
+        description="An accurate English version of the literal image.",
+    )
+    intended_meaning: str = Field(
+        max_length=360,
+        description="What the expression means in this specific context, in clear Arabic.",
+    )
+    cultural_context: str = Field(
+        max_length=420,
+        description="Brief Arabic context needed to understand the image, custom, or reference.",
+    )
+    cultural_context_english: str = Field(
+        max_length=480,
+        description="An accurate English version of the brief cultural context.",
+    )
+    english_meaning: str = Field(
+        max_length=420,
+        description="A natural English rendering of the intended meaning.",
+    )
+    english_equivalent: str = Field(
+        max_length=240,
+        description="A close English expression, or an empty string when none is reliable.",
+    )
+    confidence: ConfidenceLevel = ConfidenceLevel.medium
+
+
 class AdaptationStrategy(BaseModel):
     target_level: SimplificationLevel
     target_level_label: str
@@ -307,6 +351,11 @@ class SimplificationOutput(BaseModel):
         max_length=6,
         description="Confident sentence-level relations that help the reader follow the Arabic.",
     )
+    cultural_meanings: list[CulturalMeaningItem] = Field(
+        min_length=0,
+        max_length=4,
+        description="Source-grounded idioms, proverbs, metaphors, or cultural references that need context.",
+    )
     bridge: BridgeMode
     comprehension_check: ComprehensionCheck
 
@@ -379,6 +428,11 @@ class PoetryOutput(BaseModel):
     english_translation: str = Field(description="A complete, natural English translation of the poem.")
     lines: list[PoetryLineExplanation] = Field(min_length=1, max_length=24)
     vocabulary: list[PoetryVocabularyItem] = Field(min_length=2, max_length=8)
+    cultural_meanings: list[CulturalMeaningItem] = Field(
+        min_length=0,
+        max_length=4,
+        description="Source-grounded images, idioms, proverbs, or cultural references in the poem.",
+    )
 
 
 class PoetryResponse(PoetryOutput):

@@ -4,6 +4,7 @@ export type IntegrityStatus = "no_issue_detected" | "needs_attention" | "unavail
 export type IntegrityItemStatus = "preserved" | "missing" | "changed" | "no_issue_detected";
 export type ReadabilityLevel = "beginner" | "easy" | "standard" | "advanced";
 export type MeaningThreadKind = "pronoun" | "actor" | "connector" | "negation" | "condition" | "reference";
+export type CulturalMeaningKind = "idiom" | "proverb" | "metaphor" | "cultural_reference";
 
 export interface ReadingMemorySnapshot {
   mastered_terms: string[];
@@ -160,6 +161,19 @@ export interface MeaningThread {
   explanation_english: string;
 }
 
+export interface CulturalMeaningItem {
+  expression: string;
+  kind: CulturalMeaningKind;
+  literal_meaning: string;
+  literal_meaning_english: string;
+  intended_meaning: string;
+  cultural_context: string;
+  cultural_context_english: string;
+  english_meaning: string;
+  english_equivalent: string;
+  confidence: ConfidenceLevel;
+}
+
 export interface PoetryResult {
   original_text: string;
   reader: ReaderType;
@@ -179,6 +193,7 @@ export interface PoetryResult {
     english: string;
     verse: string;
   }>;
+  cultural_meanings: CulturalMeaningItem[];
 }
 
 export interface SimplificationResult {
@@ -198,6 +213,7 @@ export interface SimplificationResult {
   visual_steps_english: string[];
   change_map: ChangeItem[];
   meaning_threads: MeaningThread[];
+  cultural_meanings: CulturalMeaningItem[];
   bridge: BridgeMode;
   comprehension_check: {
     question: string;

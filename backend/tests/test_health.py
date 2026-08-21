@@ -8,6 +8,7 @@ from app.schemas import (
     ChangeItem,
     ConfidenceLevel,
     ComprehensionCheck,
+    CulturalMeaningItem,
     LearningCard,
     MeaningThread,
     PoetryLineExplanation,
@@ -67,6 +68,22 @@ class FakeGeminiService:
                     explanation_english=(
                         "The applicant is the person connected to the action and condition."
                     ),
+                )
+            ],
+            cultural_meanings=[
+                CulturalMeaningItem(
+                    expression="الوقت من ذهب",
+                    kind="proverb",
+                    literal_meaning="يشبّه الوقت بشيء ثمين كالذهب.",
+                    literal_meaning_english="It compares time to something as precious as gold.",
+                    intended_meaning="الوقت ثمين، فلا ينبغي إضاعته.",
+                    cultural_context="يُقال للحث على استثمار الوقت وعدم تأجيل العمل.",
+                    cultural_context_english=(
+                        "It encourages people to use their time well and avoid delaying work."
+                    ),
+                    english_meaning="Time is valuable and should not be wasted.",
+                    english_equivalent="Time is money.",
+                    confidence=ConfidenceLevel.high,
                 )
             ],
             bridge=BridgeMode(
@@ -182,6 +199,20 @@ class FakeGeminiService:
                     verse="وتأتي على قدر الكرام المكارم",
                 ),
             ],
+            cultural_meanings=[
+                CulturalMeaningItem(
+                    expression="على قدر أهل العزم تأتي العزائم",
+                    kind="metaphor",
+                    literal_meaning="تأتي العزائم بمقدار أصحاب العزم.",
+                    literal_meaning_english="Determination comes in proportion to people of resolve.",
+                    intended_meaning="تكبر الإنجازات حين تقوى إرادة أصحابها.",
+                    cultural_context="يبني البيت موازنةً بين قوة الإرادة وعظمة العمل ليجعل المعنى أكثر رسوخاً.",
+                    cultural_context_english="The verse balances strength of will with greatness of action to make the idea memorable.",
+                    english_meaning="Great achievements grow from strong determination.",
+                    english_equivalent="Where there is a will, there is a way.",
+                    confidence="high",
+                )
+            ],
         )
 
 
@@ -208,6 +239,8 @@ def test_simplify() -> None:
     assert "applicant" in response.json()["english_translation"]
     assert response.json()["learning_cards"][0]["term"] == "المتقدم"
     assert response.json()["meaning_threads"][0]["kind"] == "pronoun"
+    assert response.json()["cultural_meanings"][0]["expression"] == "الوقت من ذهب"
+    assert response.json()["cultural_meanings"][0]["english_equivalent"] == "Time is money."
 
 
 def test_simplify_receives_personal_reading_memory() -> None:
@@ -317,6 +350,8 @@ def test_poetry_explanation() -> None:
     assert response.json()["lines"][0]["clear_meaning"]
     assert response.json()["vocabulary"][0]["english"] == "determination"
     assert "Determination" in response.json()["english_translation"]
+    assert response.json()["cultural_meanings"][0]["kind"] == "metaphor"
+    assert response.json()["cultural_meanings"][0]["expression"] in response.json()["original_text"]
 
 
 def test_poetry_explanation_rejects_non_arabic_text() -> None:

@@ -9,6 +9,8 @@ import pytest
 from pydantic import BaseModel
 
 from app.schemas import (
+    PoetryOutput,
+    PoetryRequest,
     ReaderType,
     ReadingMemorySnapshot,
     SimplificationLevel,
@@ -63,6 +65,9 @@ def test_simplification_schema_is_gemini_compatible() -> None:
         "condition",
         "reference",
     ]
+    assert schema["properties"]["cultural_meanings"]["items"]["properties"]["kind"][
+        "enum"
+    ] == ["idiom", "proverb", "metaphor", "cultural_reference"]
     assert "title" not in schema
     assert "maxLength" not in schema_text
     assert "minLength" not in schema_text
@@ -78,6 +83,13 @@ def test_simplification_schema_preserves_v3_learning_fields() -> None:
 
     assert "meaning_threads" in schema["properties"]
     assert schema["properties"]["meaning_threads"]["items"]["type"] == "object"
+    assert "cultural_meanings" in schema["properties"]
+    assert schema["properties"]["cultural_meanings"]["items"]["properties"][
+        "english_equivalent"
+    ]["type"] == "string"
+    assert schema["properties"]["cultural_meanings"]["items"]["properties"][
+        "literal_meaning_english"
+    ]["type"] == "string"
     comprehension_check = schema["properties"]["comprehension_check"]
     assert comprehension_check["properties"]["choices"]["items"]["type"] == "string"
     assert comprehension_check["properties"]["correct_choice_index"]["type"] == "integer"
@@ -100,6 +112,32 @@ def test_simplification_prompt_uses_reading_memory_and_meaning_threads() -> None
     assert "مفردات ما زال يتعلّمها: استيفاء" in prompt
     assert "مرجع الضمير" in prompt
     assert "meaning_threads" in prompt
+    assert "cultural_meanings" in prompt
+    assert "انسخ العبارة من المصدر حرفياً" in prompt
+    assert "english_equivalent" in prompt
+
+
+def test_poetry_schema_and_prompt_include_cultural_meanings() -> None:
+    schema = GeminiService._response_schema(PoetryOutput)
+    service = GeminiService("test-key", "gemini-test")
+
+    with patch.object(service, "_generate", return_value=Mock()) as generate:
+        service.explain_poetry(
+            PoetryRequest(
+                text="على قدر أهل العزم تأتي العزائم",
+                reader=ReaderType.general_reader,
+                level=SimplificationLevel.easy,
+            )
+        )
+
+    prompt = generate.call_args.kwargs["input_data"]
+    assert "cultural_meanings" in schema["properties"]
+    assert schema["properties"]["cultural_meanings"]["items"]["properties"]["kind"][
+        "enum"
+    ] == ["idiom", "proverb", "metaphor", "cultural_reference"]
+    assert "cultural_meanings" in prompt
+    assert "expression حرفياً من القصيدة" in prompt
+    assert "english_equivalent" in prompt
 
 
 def test_gemini_retries_configured_fallback_after_rate_limit() -> None:

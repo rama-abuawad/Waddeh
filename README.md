@@ -32,6 +32,7 @@ Implemented in the current competition branch:
 - Bridge Mode for progressively richer Arabic versions that lead back toward the original.
 - Contextual Word Lens with diacritics, meaning, root when confident, synonym, English support, and save-to-vocabulary.
 - Meaning Threads that reveal confident pronoun, actor, connector, negation, condition, and reference relationships inside Arabic sentences.
+- Cultural Meaning Lens that identifies source-grounded idioms, proverbs, metaphors, and cultural references, then separates their literal image from their intended contextual meaning in Arabic and English.
 - English translation as support, not the destination.
 - PDF upload path for the same adaptive reading journey.
 - Device-local Reading Memory with optional saved-word MCQ review, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals used in later readings.

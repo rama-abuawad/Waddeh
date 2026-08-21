@@ -6,6 +6,9 @@ import WaddehHero from "@/components/landing/hero";
 import HowItWorks from "@/components/landing/how-it-works";
 import InteractiveArabic from "@/components/interactive-arabic";
 import {
+  ConfidenceLevel,
+  CulturalMeaningItem,
+  CulturalMeaningKind,
   MeaningThreadKind,
   PoetryResult,
   ReadingMemorySnapshot,
@@ -25,7 +28,7 @@ import {
 import { UiLanguage, uiCopy } from "@/lib/ui-copy";
 
 type ResultView = "clear" | "english" | "original";
-type ResultTool = "bridge" | "threads" | "changes" | "check" | "learning" | "trust" | "visual";
+type ResultTool = "bridge" | "threads" | "changes" | "cultural" | "check" | "learning" | "trust" | "visual";
 type SourceMode = "text" | "pdf";
 type WordMasteryStatus = "new" | "learning" | "mastered";
 
@@ -1525,7 +1528,7 @@ export default function Home() {
                   onClick={() => {
                     const next = !showMoreTools;
                     setShowMoreTools(next);
-                    if (!next && ["learning", "changes", "visual", "trust"].includes(activeTool ?? "")) setActiveTool(null);
+                    if (!next && ["learning", "changes", "cultural", "visual", "trust"].includes(activeTool ?? "")) setActiveTool(null);
                   }}
                 >
                   <span>{uiLanguage === "ar" ? "خيارات أخرى عند الحاجة" : "More options when needed"}</span>
@@ -1549,6 +1552,12 @@ export default function Home() {
                       <span className="tool-mark">⇄</span>
                       <span><strong>{t.tools.changes}</strong><small>{t.tools.changesDescription}</small></span>
                     </button>
+                    {result.cultural_meanings.length > 0 && (
+                      <button type="button" onClick={() => toggleTool("cultural")} className={`result-tool result-tool-cultural ${activeTool === "cultural" ? "result-tool-active" : ""}`}>
+                        <span className="tool-mark">◈</span>
+                        <span><strong>{t.tools.cultural}</strong><small>{t.tools.culturalDescription}</small></span>
+                      </button>
+                    )}
                     {result.visual_steps.length > 0 && (
                       <button type="button" onClick={() => toggleTool("visual")} className={`result-tool ${activeTool === "visual" ? "result-tool-active" : ""}`}>
                         <span className="tool-mark">↳</span>
@@ -1663,6 +1672,18 @@ export default function Home() {
                             ))}
                           </div>
                         ) : <p className="mt-5 text-sm text-ink/60">{t.panels.noChanges}</p>}
+                      </div>
+                    )}
+
+                    {activeTool === "cultural" && (
+                      <div>
+                        <PanelHeading
+                          title={t.panels.culturalTitle}
+                          description={t.panels.culturalDescription}
+                          closeLabel={t.wordLens.close}
+                          onClose={() => setActiveTool(null)}
+                        />
+                        <CulturalMeaningPanel items={result.cultural_meanings} uiLanguage={uiLanguage} />
                       </div>
                     )}
 
@@ -1818,6 +1839,19 @@ export default function Home() {
                 </article>
               </div>
 
+              {poetryResult.cultural_meanings.length > 0 && (
+                <section className="poetry-cultural-section">
+                  <div className="poetry-subheading">
+                    <div>
+                      <h3>{t.panels.culturalTitle}</h3>
+                      <p>{t.panels.culturalDescription}</p>
+                    </div>
+                    <span aria-hidden="true">◈</span>
+                  </div>
+                  <CulturalMeaningPanel items={poetryResult.cultural_meanings} uiLanguage={uiLanguage} />
+                </section>
+              )}
+
               <div className="poetry-subheading">
                 <div>
                   <h3>{t.poetry.linesTitle}</h3>
@@ -1933,7 +1967,7 @@ function JourneyRail({
   if (hasResult) {
     if (activeTool === "bridge" && hasBridge) activeIndex = 6;
     else if (activeTool === "trust") activeIndex = 5;
-    else if (["learning", "threads", "changes", "check", "visual"].includes(activeTool ?? "")) activeIndex = 4;
+    else if (["learning", "threads", "changes", "cultural", "check", "visual"].includes(activeTool ?? "")) activeIndex = 4;
     else activeIndex = 3;
   } else if (isLoading || hasReadability) {
     activeIndex = hasReadability ? 3 : 1;
@@ -2081,6 +2115,79 @@ function MeaningThreadsPanel({
                 </div>
               )}
             </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function culturalMeaningKindLabel(kind: CulturalMeaningKind, uiLanguage: UiLanguage): string {
+  const labels: Record<CulturalMeaningKind, { ar: string; en: string }> = {
+    idiom: { ar: "تعبير اصطلاحي", en: "Idiom" },
+    proverb: { ar: "مثل", en: "Proverb" },
+    metaphor: { ar: "صورة مجازية", en: "Metaphor" },
+    cultural_reference: { ar: "إحالة ثقافية", en: "Cultural reference" },
+  };
+  return labels[kind][uiLanguage];
+}
+
+function culturalConfidenceLabel(confidence: ConfidenceLevel, uiLanguage: UiLanguage): string {
+  const labels: Record<ConfidenceLevel, { ar: string; en: string }> = {
+    low: { ar: "قراءة محتملة", en: "Possible reading" },
+    medium: { ar: "ثقة متوسطة", en: "Medium confidence" },
+    high: { ar: "ثقة عالية", en: "High confidence" },
+  };
+  return labels[confidence][uiLanguage];
+}
+
+function CulturalMeaningPanel({
+  items,
+  uiLanguage,
+}: {
+  items: CulturalMeaningItem[];
+  uiLanguage: UiLanguage;
+}) {
+  const t = uiCopy[uiLanguage];
+
+  return (
+    <div className="cultural-meaning-list">
+      {items.map((item, index) => {
+        const literalMeaning = uiLanguage === "ar" ? item.literal_meaning : item.literal_meaning_english;
+        const intendedMeaning = uiLanguage === "ar" ? item.intended_meaning : item.english_meaning;
+        const culturalContext = uiLanguage === "ar" ? item.cultural_context : item.cultural_context_english;
+
+        return (
+          <article key={`${index}-${item.expression}`}>
+            <div className="cultural-meaning-heading">
+              <span>{culturalMeaningKindLabel(item.kind, uiLanguage)}</span>
+              <small>{culturalConfidenceLabel(item.confidence, uiLanguage)}</small>
+            </div>
+            <blockquote dir="rtl">{item.expression}</blockquote>
+            <div className="cultural-meaning-grid">
+              <section className="cultural-meaning-intended">
+                <small>{t.panels.culturalIntended}</small>
+                <p dir={uiLanguage === "ar" ? "rtl" : "ltr"}>{intendedMeaning}</p>
+              </section>
+              <section>
+                <small>{t.panels.culturalLiteral}</small>
+                <p dir={uiLanguage === "ar" ? "rtl" : "ltr"}>{literalMeaning}</p>
+              </section>
+            </div>
+            <section className="cultural-meaning-context">
+              <small>{t.panels.culturalContext}</small>
+              <p dir={uiLanguage === "ar" ? "rtl" : "ltr"}>{culturalContext}</p>
+            </section>
+            {uiLanguage === "ar" && (
+              <section className="cultural-meaning-english" dir="ltr">
+                <small>{t.panels.culturalEnglish}</small>
+                <p>{item.english_meaning}</p>
+              </section>
+            )}
+            <section className="cultural-meaning-equivalent" dir="ltr">
+              <small>{t.panels.culturalEquivalent}</small>
+              <p>{item.english_equivalent || t.panels.culturalNoEquivalent}</p>
+            </section>
           </article>
         );
       })}

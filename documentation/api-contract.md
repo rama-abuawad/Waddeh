@@ -109,6 +109,32 @@ Returns contextual Word Lens data:
 - Optional Arabic example.
 - Confidence.
 
+## `POST /api/learning/transfer-challenge`
+
+Request:
+
+```json
+{
+  "word": "استيفاء",
+  "meaning": "إكمال المتطلبات",
+  "english_meaning": "meeting the requirements",
+  "source_context": "يجب استيفاء الشروط قبل الموعد.",
+  "reader": "general_reader",
+  "level": 2
+}
+```
+
+Returns one new, level-appropriate Arabic fill-in-the-blank context with:
+
+- One aligned Arabic/English prompt containing exactly one `____` blank.
+- Three distinct, aligned Arabic/English choices.
+- A validated zero-based `correct_choice_index`.
+- Concise Arabic and English feedback explaining why the target word fits.
+
+The endpoint is called only when the learner explicitly starts a challenge. The client
+stores attempts locally and does not mark a word as mastered until recall and contextual
+transfer have both been demonstrated.
+
 ## `POST /api/poetry/explain`
 
 Request:

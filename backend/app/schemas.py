@@ -394,6 +394,62 @@ class WordExplanation(BaseModel):
     confidence: ConfidenceLevel = ConfidenceLevel.medium
 
 
+class TransferChallengeRequest(BaseModel):
+    word: str = Field(min_length=1, max_length=80)
+    meaning: str = Field(min_length=1, max_length=500)
+    english_meaning: str = Field(default="", max_length=500)
+    source_context: str = Field(default="", max_length=2_000)
+    reader: ReaderType = ReaderType.general_reader
+    level: SimplificationLevel = SimplificationLevel.easy
+
+    @field_validator("word")
+    @classmethod
+    def word_must_contain_arabic(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not any("\u0600" <= character <= "\u06ff" for character in cleaned):
+            raise ValueError("اختر كلمة عربية.")
+        return cleaned
+
+    @field_validator("meaning", "english_meaning", "source_context")
+    @classmethod
+    def clean_learning_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class TransferChallengeOutput(BaseModel):
+    word: str = Field(description="The exact target Arabic word supplied by the learner.")
+    prompt_arabic: str = Field(
+        description="A new natural Arabic sentence containing exactly one ____ blank."
+    )
+    prompt_english: str = Field(
+        description="A natural English translation of the new sentence, preserving the ____ blank."
+    )
+    choices_arabic: list[str] = Field(min_length=3, max_length=3)
+    choices_english: list[str] = Field(min_length=3, max_length=3)
+    correct_choice_index: int = Field(ge=0, le=2)
+    explanation_arabic: str = Field(
+        description="A concise explanation of why the target word fits this new context."
+    )
+    explanation_english: str = Field(
+        description="An accurate concise English version of the explanation."
+    )
+
+    @field_validator("prompt_arabic", "prompt_english")
+    @classmethod
+    def prompt_must_have_one_blank(cls, value: str) -> str:
+        if value.count("____") != 1:
+            raise ValueError("يجب أن يحتوي السؤال على فراغ واحد فقط.")
+        return value.strip()
+
+    @model_validator(mode="after")
+    def choices_must_be_aligned_and_distinct(self) -> "TransferChallengeOutput":
+        if len(self.choices_arabic) != len(self.choices_english):
+            raise ValueError("يجب أن تتطابق الخيارات العربية والإنجليزية.")
+        if len({choice.strip() for choice in self.choices_arabic}) != 3:
+            raise ValueError("يجب أن تكون الخيارات العربية مختلفة.")
+        return self
+
+
 class PoetryRequest(BaseModel):
     text: str = Field(min_length=10, max_length=6_000)
     reader: ReaderType = ReaderType.general_reader

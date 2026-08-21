@@ -20,6 +20,8 @@ from app.schemas import (
     SimplifyRequest,
     SimplifyResponse,
     SpeechRequest,
+    TransferChallengeOutput,
+    TransferChallengeRequest,
     WordExplanation,
     WordExplanationRequest,
 )
@@ -197,6 +199,29 @@ async def explain_word(
 ) -> WordExplanation:
     try:
         return await run_in_threadpool(service.explain_word, request)
+    except GeminiConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except GeminiServiceError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+
+@app.post(
+    "/api/learning/transfer-challenge",
+    response_model=TransferChallengeOutput,
+    tags=["learning"],
+)
+async def create_transfer_challenge(
+    request: TransferChallengeRequest,
+    service: GeminiService = Depends(get_gemini_service),
+) -> TransferChallengeOutput:
+    try:
+        return await run_in_threadpool(service.create_transfer_challenge, request)
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

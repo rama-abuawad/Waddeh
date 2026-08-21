@@ -174,6 +174,17 @@ export interface CulturalMeaningItem {
   confidence: ConfidenceLevel;
 }
 
+export interface TransferChallengeResult {
+  word: string;
+  prompt_arabic: string;
+  prompt_english: string;
+  choices_arabic: string[];
+  choices_english: string[];
+  correct_choice_index: number;
+  explanation_arabic: string;
+  explanation_english: string;
+}
+
 export interface PoetryResult {
   original_text: string;
   reader: ReaderType;
@@ -316,6 +327,21 @@ export function explainWord(payload: {
   reader: ReaderType;
 }): Promise<WordExplanation> {
   return requestJson<WordExplanation>("/api/explain-word", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }, 60_000);
+}
+
+export function createTransferChallenge(payload: {
+  word: string;
+  meaning: string;
+  english_meaning: string;
+  source_context: string;
+  reader: ReaderType;
+  level: number;
+}): Promise<TransferChallengeResult> {
+  return requestJson<TransferChallengeResult>("/api/learning/transfer-challenge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

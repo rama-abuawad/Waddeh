@@ -15,8 +15,10 @@ import {
   ReadabilityAssessment,
   ReaderType,
   SimplificationResult,
+  TransferChallengeResult,
   WordExplanation,
   assessReadability,
+  createTransferChallenge,
   explainPoetry,
   explainWord,
   simplifyPdf,
@@ -31,6 +33,7 @@ type ResultView = "clear" | "english" | "original";
 type ResultTool = "bridge" | "threads" | "changes" | "cultural" | "check" | "learning" | "trust" | "visual";
 type SourceMode = "text" | "pdf";
 type WordMasteryStatus = "new" | "learning" | "mastered";
+type VocabularyView = "words" | "mastery";
 
 interface SavedWord extends WordExplanation {
   id: string;
@@ -40,6 +43,16 @@ interface SavedWord extends WordExplanation {
   lastReviewedAt: string;
   quizAttempts: number;
   correctAnswers: number;
+  transferAttempts: number;
+  transferCorrectAnswers: number;
+}
+
+interface ActiveTransferChallenge {
+  wordId: string;
+  loading: boolean;
+  data?: TransferChallengeResult;
+  selectedChoice?: number;
+  error?: string;
 }
 
 interface LearningProfile {
@@ -206,9 +219,11 @@ export default function Home() {
   const speechAudioContext = useRef<AudioContext | null>(null);
   const [copied, setCopied] = useState(false);
   const [vocabularyOpen, setVocabularyOpen] = useState(false);
+  const [vocabularyView, setVocabularyView] = useState<VocabularyView>("words");
   const [savedWordQuizOpen, setSavedWordQuizOpen] = useState(false);
   const [savedWordQuizIndex, setSavedWordQuizIndex] = useState(0);
   const [savedWordQuizChoice, setSavedWordQuizChoice] = useState<number | null>(null);
+  const [transferChallenge, setTransferChallenge] = useState<ActiveTransferChallenge | null>(null);
   const [poetryText, setPoetryText] = useState("");
   const [poetryResult, setPoetryResult] = useState<PoetryResult | null>(null);
   const [poetryError, setPoetryError] = useState("");
@@ -239,6 +254,8 @@ export default function Home() {
             lastReviewedAt: word.lastReviewedAt ?? word.savedAt ?? new Date().toISOString(),
             quizAttempts: word.quizAttempts ?? 0,
             correctAnswers: word.correctAnswers ?? 0,
+            transferAttempts: word.transferAttempts ?? 0,
+            transferCorrectAnswers: word.transferCorrectAnswers ?? 0,
           })));
         }
         if (storedProfile) {
@@ -400,6 +417,8 @@ export default function Home() {
               item.quizAttempts,
               item.correctAnswers,
               item.supportCount + 1,
+              item.transferAttempts,
+              item.transferCorrectAnswers,
             ),
             lastReviewedAt: new Date().toISOString(),
           }
@@ -416,6 +435,8 @@ export default function Home() {
         lastReviewedAt: new Date().toISOString(),
         quizAttempts: 0,
         correctAnswers: 0,
+        transferAttempts: 0,
+        transferCorrectAnswers: 0,
       },
       ...savedWords,
     ]);
@@ -537,7 +558,15 @@ export default function Home() {
     const attempts = (existing?.quizAttempts ?? 0) + 1;
     const correctAnswers = (existing?.correctAnswers ?? 0) + (correct ? 1 : 0);
     const supportCount = existing?.supportCount ?? 1;
-    const mastery = masteryFromEvidence(attempts, correctAnswers, supportCount);
+    const transferAttempts = existing?.transferAttempts ?? 0;
+    const transferCorrectAnswers = existing?.transferCorrectAnswers ?? 0;
+    const mastery = masteryFromEvidence(
+      attempts,
+      correctAnswers,
+      supportCount,
+      transferAttempts,
+      transferCorrectAnswers,
+    );
 
     const quizWord: SavedWord = {
       word: card.term,
@@ -555,6 +584,8 @@ export default function Home() {
       lastReviewedAt: new Date().toISOString(),
       quizAttempts: attempts,
       correctAnswers,
+      transferAttempts,
+      transferCorrectAnswers,
     };
 
     persistWords(existing
@@ -571,7 +602,13 @@ export default function Home() {
     const correctAnswers = target.correctAnswers + (correct ? 1 : 0);
     const reviewedWord: SavedWord = {
       ...target,
-      mastery: masteryFromEvidence(attempts, correctAnswers, target.supportCount),
+      mastery: masteryFromEvidence(
+        attempts,
+        correctAnswers,
+        target.supportCount,
+        target.transferAttempts,
+        target.transferCorrectAnswers,
+      ),
       quizAttempts: attempts,
       correctAnswers,
       lastReviewedAt: new Date().toISOString(),
@@ -584,6 +621,58 @@ export default function Home() {
   function continueSavedVocabularyQuiz() {
     setSavedWordQuizIndex((current) => current + 1);
     setSavedWordQuizChoice(null);
+  }
+
+  async function startTransferChallenge(word: SavedWord) {
+    setVocabularyView("words");
+    setTransferChallenge({ wordId: word.id, loading: true });
+    try {
+      const data = await createTransferChallenge({
+        word: word.word,
+        meaning: word.meaning,
+        english_meaning: word.english,
+        source_context: word.example,
+        reader,
+        level: selectedLevel,
+      });
+      setTransferChallenge({ wordId: word.id, loading: false, data });
+    } catch (requestError) {
+      setTransferChallenge({
+        wordId: word.id,
+        loading: false,
+        error: uiLanguage === "ar" && requestError instanceof Error
+          ? requestError.message
+          : uiLanguage === "ar"
+            ? "تعذر إعداد التحدّي الآن. حاول مرة أخرى."
+            : "The challenge could not be prepared. Please try again.",
+      });
+    }
+  }
+
+  function recordTransferChoice(choiceIndex: number) {
+    if (!transferChallenge?.data || transferChallenge.selectedChoice !== undefined) return;
+    const target = savedWords.find((word) => word.id === transferChallenge.wordId);
+    if (!target) return;
+
+    const correct = choiceIndex === transferChallenge.data.correct_choice_index;
+    const transferAttempts = target.transferAttempts + 1;
+    const transferCorrectAnswers = target.transferCorrectAnswers + (correct ? 1 : 0);
+    const reviewedWord: SavedWord = {
+      ...target,
+      transferAttempts,
+      transferCorrectAnswers,
+      mastery: masteryFromEvidence(
+        target.quizAttempts,
+        target.correctAnswers,
+        target.supportCount,
+        transferAttempts,
+        transferCorrectAnswers,
+      ),
+      lastReviewedAt: new Date().toISOString(),
+    };
+
+    persistWords(savedWords.map((word) => word.id === target.id ? reviewedWord : word));
+    setTransferChallenge({ ...transferChallenge, selectedChoice: choiceIndex });
   }
 
   function continuePlacementCheck() {
@@ -979,7 +1068,38 @@ export default function Home() {
               </div>
               <button autoFocus type="button" onClick={() => setVocabularyOpen(false)} aria-label={t.wordLens.close}>×</button>
             </div>
-            <div className="reading-memory-summary" aria-label={uiLanguage === "ar" ? "ملخص مفرداتي" : "My vocabulary summary"}>
+            <div className="vocabulary-drawer-tabs" role="tablist" aria-label={uiLanguage === "ar" ? "مفرداتي وتقدّمي" : "Vocabulary and progress"}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vocabularyView === "words"}
+                className={vocabularyView === "words" ? "active" : ""}
+                onClick={() => setVocabularyView("words")}
+              >
+                {uiLanguage === "ar" ? "الكلمات" : "Words"}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={vocabularyView === "mastery"}
+                className={vocabularyView === "mastery" ? "active" : ""}
+                onClick={() => setVocabularyView("mastery")}
+              >
+                {uiLanguage === "ar" ? "خريطة التمكّن" : "Mastery Map"}
+              </button>
+            </div>
+
+            {vocabularyView === "mastery" ? (
+              <MasteryMap
+                profile={profile}
+                savedWords={savedWords}
+                learnerLevel={learnerLevel}
+                uiLanguage={uiLanguage}
+                onShowWords={() => setVocabularyView("words")}
+              />
+            ) : (
+              <>
+              <div className="reading-memory-summary" aria-label={uiLanguage === "ar" ? "ملخص مفرداتي" : "My vocabulary summary"}>
               <span><strong>{savedWords.length}</strong><small>{uiLanguage === "ar" ? "كلمات" : "Words"}</small></span>
               <span><strong>{learningWordCount}</strong><small>{uiLanguage === "ar" ? "قيد التعلّم" : "Learning"}</small></span>
               <span><strong>{masteredWordCount}</strong><small>{uiLanguage === "ar" ? "أتقنتها" : "Mastered"}</small></span>
@@ -1060,6 +1180,16 @@ export default function Home() {
                 )}
               </section>
             )}
+            {transferChallenge && (
+              <TransferChallengeCard
+                challenge={transferChallenge}
+                word={savedWords.find((item) => item.id === transferChallenge.wordId)}
+                uiLanguage={uiLanguage}
+                onSelect={recordTransferChoice}
+                onRetry={(word) => void startTransferChallenge(word)}
+                onClose={() => setTransferChallenge(null)}
+              />
+            )}
             {savedWords.length > 0 ? (
               <div className="drawer-word-list">
                 {savedWords.map((word) => (
@@ -1067,22 +1197,42 @@ export default function Home() {
                     <div className="drawer-word-copy">
                       <strong dir="rtl">{word.diacritized_word}</strong>
                       <p>{uiLanguage === "en" ? word.english : word.meaning}</p>
+                      <button
+                        type="button"
+                        className="word-transfer-launch"
+                        disabled={transferChallenge?.loading && transferChallenge.wordId === word.id}
+                        onClick={() => void startTransferChallenge(word)}
+                      >
+                        <span aria-hidden="true">↗</span>
+                        {transferChallenge?.loading && transferChallenge.wordId === word.id
+                          ? uiLanguage === "ar" ? "نعدّ سياقاً جديداً…" : "Preparing a new context…"
+                          : uiLanguage === "ar" ? "جرّبها في سياق جديد" : "Try it in a new context"}
+                      </button>
                     </div>
                     <div className="drawer-word-actions">
                       <span className={`mastery-badge mastery-${word.mastery}`}>
                         <strong>{masteryLabel(word.mastery, uiLanguage)}</strong>
                         <small>
-                          {word.quizAttempts > 0
+                          {word.quizAttempts > 0 && word.transferAttempts > 0
                             ? uiLanguage === "ar"
-                              ? `${word.correctAnswers} من ${word.quizAttempts} صحيحة`
-                              : `${word.correctAnswers}/${word.quizAttempts} correct`
-                            : uiLanguage === "ar" ? "بانتظار أول اختبار" : "Awaiting first check"}
+                              ? `المعنى ${word.correctAnswers}/${word.quizAttempts} · السياق ${word.transferCorrectAnswers}/${word.transferAttempts}`
+                              : `Meaning ${word.correctAnswers}/${word.quizAttempts} · context ${word.transferCorrectAnswers}/${word.transferAttempts}`
+                            : word.quizAttempts > 0
+                              ? uiLanguage === "ar"
+                                ? `المعنى ${word.correctAnswers} من ${word.quizAttempts}`
+                                : `Meaning ${word.correctAnswers}/${word.quizAttempts}`
+                              : word.transferAttempts > 0
+                                ? uiLanguage === "ar"
+                                  ? `السياق ${word.transferCorrectAnswers}/${word.transferAttempts} · بانتظار مراجعة المعنى`
+                                  : `Context ${word.transferCorrectAnswers}/${word.transferAttempts} · meaning review pending`
+                                : uiLanguage === "ar" ? "بانتظار أول اختبار" : "Awaiting first check"}
                         </small>
                       </span>
                       <button
                         type="button"
                         onClick={() => {
                           persistWords(savedWords.filter((item) => item.id !== word.id));
+                          if (transferChallenge?.wordId === word.id) setTransferChallenge(null);
                           setSavedWordQuizOpen(false);
                           setSavedWordQuizChoice(null);
                         }}
@@ -1099,6 +1249,8 @@ export default function Home() {
                 <p>{t.panels.emptyVocabularyHint}</p>
                 <button type="button" onClick={() => { setVocabularyOpen(false); scrollToSection("workspace"); }}>{t.hero.cta}</button>
               </div>
+            )}
+              </>
             )}
           </aside>
         </div>
@@ -2366,6 +2518,222 @@ function integrityStatusLabel(status: string, uiLanguage: UiLanguage): string {
   return uiLanguage === "ar" ? "لم تظهر مشكلة" : "No issue detected";
 }
 
+function MasteryMap({
+  profile,
+  savedWords,
+  learnerLevel,
+  uiLanguage,
+  onShowWords,
+}: {
+  profile: LearningProfile;
+  savedWords: SavedWord[];
+  learnerLevel: number;
+  uiLanguage: UiLanguage;
+  onShowWords: () => void;
+}) {
+  const comprehensionAttempts = profile.understoodChecks + profile.reviewChecks;
+  const recallAttempts = savedWords.reduce((total, word) => total + word.quizAttempts, 0);
+  const recallCorrect = savedWords.reduce((total, word) => total + word.correctAnswers, 0);
+  const transferAttempts = savedWords.reduce((total, word) => total + word.transferAttempts, 0);
+  const transferCorrect = savedWords.reduce((total, word) => total + word.transferCorrectAnswers, 0);
+  const skills = [
+    {
+      id: "comprehension",
+      marker: "01",
+      title: uiLanguage === "ar" ? "فهم النص" : "Text understanding",
+      description: uiLanguage === "ar" ? "من إجاباتك عن أسئلة النصوص" : "From your answers to text questions",
+      attempts: comprehensionAttempts,
+      correct: profile.understoodChecks,
+    },
+    {
+      id: "recall",
+      marker: "02",
+      title: uiLanguage === "ar" ? "تذكّر المفردات" : "Vocabulary recall",
+      description: uiLanguage === "ar" ? "من مراجعات المعنى في مفرداتك" : "From meaning checks in your vocabulary",
+      attempts: recallAttempts,
+      correct: recallCorrect,
+    },
+    {
+      id: "transfer",
+      marker: "03",
+      title: uiLanguage === "ar" ? "استخدام الكلمة" : "Using words in context",
+      description: uiLanguage === "ar" ? "من قدرتك على فهمها في سياق جديد" : "From recognizing words in a new context",
+      attempts: transferAttempts,
+      correct: transferCorrect,
+    },
+  ];
+  const nextSkill = skills.find((skill) => skill.attempts === 0)
+    ?? [...skills].sort((left, right) => skillAccuracy(left) - skillAccuracy(right))[0];
+
+  return (
+    <section className="mastery-map" aria-labelledby="mastery-map-title">
+      <div className="mastery-map-intro">
+        <span aria-hidden="true">⌁</span>
+        <div>
+          <p>{uiLanguage === "ar" ? "خريطة تتغيّر معك" : "A map that changes with you"}</p>
+          <h3 id="mastery-map-title">{uiLanguage === "ar" ? "خريطة التمكّن" : "Arabic Mastery Map"}</h3>
+          <small>
+            {uiLanguage === "ar"
+              ? "نبنيها من إجاباتك فقط، بلا نسب تقديرية أو ادعاء للإتقان."
+              : "Built only from your answers—without estimated scores or assumed mastery."}
+          </small>
+        </div>
+      </div>
+
+      <div className="mastery-map-skills">
+        {skills.map((skill) => {
+          const stage = masteryStage(skill.attempts, skill.correct, uiLanguage);
+          return (
+            <article key={skill.id} className={`mastery-map-skill stage-${stage.id}`}>
+              <span>{skill.marker}</span>
+              <div>
+                <h4>{skill.title}</h4>
+                <p>{skill.description}</p>
+              </div>
+              <aside>
+                <strong>{stage.label}</strong>
+                <small>
+                  {skill.attempts === 0
+                    ? uiLanguage === "ar" ? "لا دليل بعد" : "No evidence yet"
+                    : uiLanguage === "ar"
+                      ? `${skill.correct} من ${skill.attempts} إجابات صحيحة`
+                      : `${skill.correct} of ${skill.attempts} correct`}
+                </small>
+              </aside>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="mastery-map-next">
+        <div>
+          <small>{uiLanguage === "ar" ? "الخطوة الأنسب الآن" : "Best next step"}</small>
+          <strong>{nextSkill.title}</strong>
+          <p>
+            {nextSkill.id === "transfer"
+              ? uiLanguage === "ar" ? "اختر كلمة محفوظة وجرّبها في جملة لم ترها من قبل." : "Choose a saved word and try it in a sentence you have not seen before."
+              : nextSkill.id === "recall"
+                ? uiLanguage === "ar" ? "ابدأ بمراجعة قصيرة للمعنى من كلماتك المحفوظة." : "Start with a short meaning review from your saved words."
+                : uiLanguage === "ar" ? "وضّح نصاً ثم أجب عن سؤال الفهم القصير." : "Clarify a text, then answer its short understanding check."}
+          </p>
+        </div>
+        <button type="button" onClick={onShowWords}>
+          {uiLanguage === "ar" ? "العودة إلى الكلمات" : "Back to words"}
+        </button>
+      </div>
+
+      <footer>
+        <span>{uiLanguage === "ar" ? "نقطة البداية الحالية" : "Current starting point"}</span>
+        <strong>{levelLabel(learnerLevel, uiLanguage)}</strong>
+        <small>
+          {profile.levelMode === "manual"
+            ? uiLanguage === "ar" ? "اخترتها بنفسك" : "Chosen by you"
+            : uiLanguage === "ar" ? "تتكيّف مع نتائج الفهم" : "Adapts from understanding checks"}
+        </small>
+      </footer>
+    </section>
+  );
+}
+
+function TransferChallengeCard({
+  challenge,
+  word,
+  uiLanguage,
+  onSelect,
+  onRetry,
+  onClose,
+}: {
+  challenge: ActiveTransferChallenge;
+  word?: SavedWord;
+  uiLanguage: UiLanguage;
+  onSelect: (index: number) => void;
+  onRetry: (word: SavedWord) => void;
+  onClose: () => void;
+}) {
+  if (!word) return null;
+  const answered = challenge.selectedChoice !== undefined;
+
+  return (
+    <section className="transfer-challenge" aria-live="polite" aria-labelledby="transfer-challenge-title">
+      <div className="transfer-challenge-heading">
+        <div>
+          <p>{uiLanguage === "ar" ? "تحدّي الاستخدام" : "Transfer Challenge"}</p>
+          <h3 id="transfer-challenge-title" dir="rtl">{word.diacritized_word}</h3>
+          <span>
+            {uiLanguage === "ar"
+              ? "سياق جديد واحد، لتتأكد أن المعنى انتقل معك."
+              : "One new context to check that the meaning transferred with you."}
+          </span>
+        </div>
+        <button type="button" onClick={onClose} aria-label={uiLanguage === "ar" ? "إغلاق التحدّي" : "Close challenge"}>×</button>
+      </div>
+
+      {challenge.loading && (
+        <div className="transfer-challenge-loading" role="status">
+          <i aria-hidden="true" />
+          <p>{uiLanguage === "ar" ? "نكتب سياقاً جديداً لهذه الكلمة…" : "Preparing a new context for this word…"}</p>
+        </div>
+      )}
+
+      {challenge.error && (
+        <div className="transfer-challenge-error" role="alert">
+          <p>{challenge.error}</p>
+          <button type="button" onClick={() => onRetry(word)}>{uiLanguage === "ar" ? "حاول مرة أخرى" : "Try again"}</button>
+        </div>
+      )}
+
+      {challenge.data && (
+        <div className="transfer-challenge-body">
+          <small>{uiLanguage === "ar" ? "اختر الكلمة التي تُكمل الجملة" : "Choose the word that completes the sentence"}</small>
+          <h4 dir="rtl">{challenge.data.prompt_arabic}</h4>
+          {uiLanguage === "en" && <p dir="ltr">{challenge.data.prompt_english}</p>}
+          <div className="transfer-challenge-choices">
+            {challenge.data.choices_arabic.map((choice, index) => {
+              const isCorrect = answered && index === challenge.data?.correct_choice_index;
+              const isSelected = challenge.selectedChoice === index;
+              return (
+                <button
+                  key={`${index}-${choice}`}
+                  type="button"
+                  disabled={answered}
+                  className={`${isSelected ? "selected" : ""} ${isCorrect ? "correct" : ""}`}
+                  onClick={() => onSelect(index)}
+                >
+                  <strong dir="rtl">{choice}</strong>
+                  {uiLanguage === "en" && <small>{challenge.data?.choices_english[index]}</small>}
+                </button>
+              );
+            })}
+          </div>
+          {answered && (
+            <div className={`transfer-challenge-feedback ${challenge.selectedChoice === challenge.data.correct_choice_index ? "correct" : "review"}`}>
+              <strong>
+                {challenge.selectedChoice === challenge.data.correct_choice_index
+                  ? uiLanguage === "ar" ? "وصل المعنى إلى السياق الجديد." : "You carried the meaning into the new context."
+                  : uiLanguage === "ar" ? "اقتربت؛ راجع لماذا تناسب الكلمة هذا السياق." : "Almost—review why the word fits this context."}
+              </strong>
+              <p>{uiLanguage === "ar" ? challenge.data.explanation_arabic : challenge.data.explanation_english}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function skillAccuracy(skill: { attempts: number; correct: number }): number {
+  return skill.attempts === 0 ? -1 : skill.correct / skill.attempts;
+}
+
+function masteryStage(attempts: number, correct: number, uiLanguage: UiLanguage) {
+  if (attempts === 0) return { id: "unseen", label: uiLanguage === "ar" ? "لم يبدأ" : "Not started" };
+  if (attempts < 3) return { id: "forming", label: uiLanguage === "ar" ? "يتشكّل" : "Taking shape" };
+  const accuracy = correct / attempts;
+  if (accuracy >= 0.75) return { id: "steady", label: uiLanguage === "ar" ? "راسخ" : "Steady" };
+  if (accuracy >= 0.5) return { id: "growing", label: uiLanguage === "ar" ? "يتقدّم" : "Growing" };
+  return { id: "practice", label: uiLanguage === "ar" ? "يحتاج تثبيتاً" : "Needs practice" };
+}
+
 function masteryLabel(status: WordMasteryStatus, uiLanguage: UiLanguage): string {
   const labels: Record<WordMasteryStatus, { ar: string; en: string }> = {
     new: { ar: "جديدة", en: "New" },
@@ -2409,9 +2777,13 @@ function masteryFromEvidence(
   attempts: number,
   correctAnswers: number,
   supportCount: number,
+  transferAttempts = 0,
+  transferCorrectAnswers = 0,
 ): WordMasteryStatus {
-  if (attempts >= 2 && correctAnswers >= 2 && correctAnswers / attempts >= 0.67) return "mastered";
-  if (attempts > 0 || supportCount > 1) return "learning";
+  const recallIsStrong = attempts >= 2 && correctAnswers >= 2 && correctAnswers / attempts >= 0.67;
+  const transferIsProven = transferAttempts >= 1 && transferCorrectAnswers >= 1;
+  if (recallIsStrong && transferIsProven) return "mastered";
+  if (attempts > 0 || transferAttempts > 0 || supportCount > 1) return "learning";
   return "new";
 }
 

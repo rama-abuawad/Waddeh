@@ -15,6 +15,8 @@ from app.schemas import (
     ReadingMemorySnapshot,
     SimplificationLevel,
     SimplificationOutput,
+    TransferChallengeOutput,
+    TransferChallengeRequest,
 )
 from app.services.gemini import GeminiService, GeminiServiceError
 
@@ -138,6 +140,64 @@ def test_poetry_schema_and_prompt_include_cultural_meanings() -> None:
     assert "cultural_meanings" in prompt
     assert "expression حرفياً من القصيدة" in prompt
     assert "english_equivalent" in prompt
+
+
+def test_transfer_challenge_schema_and_prompt_require_grounded_new_context() -> None:
+    schema = GeminiService._response_schema(TransferChallengeOutput)
+    service = GeminiService("test-key", "gemini-test")
+
+    with patch.object(service, "_generate", return_value=TransferChallengeOutput(
+        word="استيفاء",
+        prompt_arabic="يحتاج التسجيل إلى ____ البيانات كاملة.",
+        prompt_english="Registration requires ____ all details.",
+        choices_arabic=["حذف", "استيفاء", "نسيان"],
+        choices_english=["deleting", "completing", "forgetting"],
+        correct_choice_index=1,
+        explanation_arabic="تعني استيفاء هنا إكمال المطلوب.",
+        explanation_english="Here, the word means completing what is required.",
+    )) as generate:
+        result = service.create_transfer_challenge(
+            TransferChallengeRequest(
+                word="استيفاء",
+                meaning="إكمال المتطلبات",
+                english_meaning="meeting requirements",
+                source_context="يجب استيفاء الشروط.",
+                level=SimplificationLevel.easy,
+            )
+        )
+
+    prompt = generate.call_args.kwargs["input_data"]
+    assert result.word == "استيفاء"
+    assert schema["properties"]["correct_choice_index"]["type"] == "integer"
+    assert schema["properties"]["choices_arabic"]["items"]["type"] == "string"
+    assert "تختلف بوضوح عن previous_context" in prompt
+    assert "فراغاً واحداً فقط" in prompt
+    assert "جواب صحيح واحد" in prompt
+
+
+def test_transfer_challenge_rejects_a_correct_choice_for_another_word() -> None:
+    service = GeminiService("test-key", "gemini-test")
+    request = TransferChallengeRequest(
+        word="استيفاء",
+        meaning="إكمال المتطلبات",
+        english_meaning="meeting requirements",
+        source_context="يجب استيفاء الشروط.",
+        level=SimplificationLevel.easy,
+    )
+    mismatched_output = TransferChallengeOutput(
+        word="استيفاء",
+        prompt_arabic="يحتاج التسجيل إلى ____ البيانات كاملة.",
+        prompt_english="Registration requires ____ all details.",
+        choices_arabic=["حذف", "إلغاء", "نسيان"],
+        choices_english=["deleting", "cancelling", "forgetting"],
+        correct_choice_index=1,
+        explanation_arabic="شرح غير مطابق للكلمة المطلوبة.",
+        explanation_english="The explanation does not match the requested word.",
+    )
+
+    with patch.object(service, "_generate", return_value=mismatched_output):
+        with pytest.raises(GeminiServiceError, match="valid transfer challenge"):
+            service.create_transfer_challenge(request)
 
 
 def test_gemini_retries_configured_fallback_after_rate_limit() -> None:

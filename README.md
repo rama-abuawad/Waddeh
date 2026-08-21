@@ -35,7 +35,9 @@ Implemented in the current competition branch:
 - Cultural Meaning Lens that identifies source-grounded idioms, proverbs, metaphors, and cultural references, then separates their literal image from their intended contextual meaning in Arabic and English.
 - English translation as support, not the destination.
 - PDF upload path for the same adaptive reading journey.
-- Device-local Reading Memory with optional saved-word MCQ review, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals used in later readings.
+- Device-local Reading Memory with optional saved-word MCQ review, comprehension feedback, and recurring difficulty signals used in later readings.
+- Arabic Mastery Map that reports text understanding, vocabulary recall, and contextual transfer only from the learner's recorded answers, without invented proficiency percentages.
+- On-demand Transfer Challenge that tests a saved Arabic word in a new, level-appropriate sentence; vocabulary reaches “mastered” only after successful recall and contextual transfer evidence.
 - PWA shell, RTL/LTR interface, frontend validation, backend tests, CI, and deterministic evaluation starter set.
 
 Waddeh is not a generic chatbot, generic translator, generic PDF chatbot, unrelated AI feature bundle, or Duolingo clone.
@@ -162,6 +164,8 @@ The live smoke test requires a local `GEMINI_API_KEY`. It exercises text adaptat
 - `POST /api/simplify`
 - `POST /api/upload/pdf`
 - `POST /api/explain-word`
+- `POST /api/learning/transfer-challenge`
+- `POST /api/poetry/explain`
 
 See `documentation/api-contract.md` for response details.
 

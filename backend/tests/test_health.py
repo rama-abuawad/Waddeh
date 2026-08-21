@@ -17,6 +17,7 @@ from app.schemas import (
     SemanticIntegrityAssessment,
     SimplificationOutput,
     SimplificationLevel,
+    TransferChallengeOutput,
     WordExplanation,
 )
 from app.services.gemini import GeminiService, get_gemini_service
@@ -161,6 +162,20 @@ class FakeGeminiService:
             root="ق د م",
             synonym="مقدم الطلب",
             english="applicant",
+        )
+
+    def create_transfer_challenge(self, request: object) -> TransferChallengeOutput:
+        word = request.word  # type: ignore[attr-defined]
+        english = request.english_meaning or "the target word"  # type: ignore[attr-defined]
+        return TransferChallengeOutput(
+            word=word,
+            prompt_arabic="ظهرت ____ في موقف جديد يوضّح معناها.",
+            prompt_english="____ appeared in a new situation that shows its meaning.",
+            choices_arabic=["التردد", word, "التجاهل"],
+            choices_english=["hesitation", english, "neglect"],
+            correct_choice_index=1,
+            explanation_arabic=f"تناسب «{word}» السياق لأنها تحمل المعنى الذي تعلّمته.",
+            explanation_english="The target word fits because it carries the meaning you learned.",
         )
 
     def explain_poetry(self, _request: object) -> PoetryOutput:
@@ -330,6 +345,40 @@ def test_word_lens() -> None:
 
     assert response.status_code == 200
     assert response.json()["root"] == "ق د م"
+
+
+def test_transfer_challenge_uses_a_new_context() -> None:
+    app.dependency_overrides[get_gemini_service] = lambda: FakeGeminiService()
+    try:
+        response = client.post(
+            "/api/learning/transfer-challenge",
+            json={
+                "word": "استيفاء",
+                "meaning": "إكمال المتطلبات",
+                "english_meaning": "meeting the requirements",
+                "source_context": "يجب استيفاء الشروط قبل الموعد.",
+                "reader": "general_reader",
+                "level": 2,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["word"] == "استيفاء"
+    assert body["prompt_arabic"].count("____") == 1
+    assert body["choices_arabic"][body["correct_choice_index"]] == "استيفاء"
+    assert len(body["choices_english"]) == 3
+
+
+def test_transfer_challenge_rejects_non_arabic_word() -> None:
+    response = client.post(
+        "/api/learning/transfer-challenge",
+        json={"word": "application", "meaning": "طلب", "level": 2},
+    )
+
+    assert response.status_code == 422
 
 
 def test_poetry_explanation() -> None:

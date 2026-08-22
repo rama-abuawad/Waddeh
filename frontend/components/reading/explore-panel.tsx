@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpenCheck, ChevronDown, GitBranch, Languages, Route, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, ChevronDown, GitBranch, Languages, Route, ShieldCheck, Sparkles, X } from "lucide-react";
 import { useState } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
@@ -96,7 +96,7 @@ export default function ExplorePanel({
   return (
     <div className={`v4-explore-panel ${mobile ? "is-mobile" : ""}`}>
       <div className="v4-explore-heading">
-        <div><p className="v4-kicker">{copy.explore}</p><h2>{copy.exploreTitle}</h2></div>
+        <div><Sparkles aria-hidden="true" /><h2>{copy.exploreTitle}</h2></div>
         {onClose && <button type="button" onClick={onClose} aria-label={copy.close}><X /></button>}
       </div>
       {!active && <div className="v4-explore-actions">

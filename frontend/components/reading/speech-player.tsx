@@ -31,6 +31,10 @@ export default function SpeechPlayer({
     : player.source === "device"
       ? isArabic ? "نستخدم صوت الجهاز لأن الصوت السحابي غير متاح." : "Using the device voice while cloud audio is unavailable."
       : "";
+  const label = compact
+    ? isArabic ? "استمع" : "Hear it"
+    : isArabic ? "استمع إلى المقطع" : "Listen to the passage";
+  const sublabel = isArabic ? "العربية" : "Arabic";
 
   return (
     <div className={`v4-audio ${compact ? "v4-audio-compact" : ""}`}>
@@ -44,14 +48,16 @@ export default function SpeechPlayer({
       </button>
       <div className="v4-audio-body">
         <div className="v4-audio-heading">
-          <span><Volume2 /> {isArabic ? "استمع إلى العربية" : "Listen to the Arabic"}</span>
-          {!compact && <span className="v4-audio-time">{formatTime(player.currentTime)} / {formatTime(player.duration)}</span>}
+          <span><Volume2 /> {label}<em>· {sublabel}</em></span>
         </div>
-        {!compact && (
-          <div className="v4-audio-track" aria-hidden="true">
-            <span style={{ width: `${progress}%` }} />
+        <div className="v4-audio-progress">
+          <div className={`v4-audio-wave ${player.status === "playing" ? "is-playing" : ""}`} aria-hidden="true">
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((index) => (
+              <span key={index} style={{ animationDelay: `${index * 90}ms`, opacity: progress >= index * 12.5 ? 1 : 0.34 }} />
+            ))}
           </div>
-        )}
+          <span className="v4-audio-time">{formatTime(player.currentTime)} / {formatTime(player.duration)}</span>
+        </div>
         {notice && <small role="status">{notice}</small>}
       </div>
       {!compact && (

@@ -100,12 +100,6 @@ export default function HomeComposer() {
       <form className="v4-composer" onSubmit={handleSubmit}>
         <div className={`v4-composer-field ${dragging ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
           {dragging && <div className="v4-drop-message"><Upload /> {copy.drop}</div>}
-          <div className="v4-composer-topbar">
-            <div className="v4-mode-switch" role="tablist" aria-label={uiLanguage === "ar" ? "نوع القراءة" : "Reading mode"}>
-              <button type="button" role="tab" aria-selected={mode === "standard"} className={mode === "standard" ? "active" : ""} onClick={() => setMode("standard")}>{copy.standard}</button>
-              <button type="button" role="tab" aria-selected={mode === "poetry"} className={mode === "poetry" ? "active" : ""} onClick={() => { setMode("poetry"); setFile(null); }}>{copy.poetry}</button>
-            </div>
-          </div>
           {!file ? (
             <textarea ref={textArea} dir="rtl" lang="ar" rows={3} maxLength={mode === "poetry" ? 6000 : 15000} value={text} onChange={handleTextChange} placeholder={copy.placeholder} autoFocus />
           ) : (
@@ -117,7 +111,12 @@ export default function HomeComposer() {
           )}
 
           <div className="v4-composer-toolbar">
-            <div>
+            <div className="v4-composer-options">
+              <div className="v4-mode-switch" role="tablist" aria-label={uiLanguage === "ar" ? "نوع القراءة" : "Reading mode"}>
+                <button type="button" role="tab" aria-selected={mode === "standard"} className={mode === "standard" ? "active" : ""} onClick={() => setMode("standard")}>{copy.standard}</button>
+                <button type="button" role="tab" aria-selected={mode === "poetry"} className={mode === "poetry" ? "active" : ""} onClick={() => { setMode("poetry"); setFile(null); }}>{copy.poetry}</button>
+              </div>
+              <span className="v4-composer-toolbar-divider" aria-hidden="true" />
               {mode === "standard" && <><input ref={fileInput} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => acceptFile(event.target.files?.[0] ?? null)} /><button type="button" className="v4-tool-button" onClick={() => fileInput.current?.click()}><Paperclip /> {copy.attach}</button></>}
               {!file && <button type="button" className="v4-tool-button" onClick={() => setText(mode === "poetry" ? poetryExample : standardExample)}>{copy.sample}</button>}
             </div>

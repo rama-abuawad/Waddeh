@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenCheck, ChevronDown, GitBranch, Languages, Route, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, ChevronDown, GitBranch, Languages, Route, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
-import type { MeaningThread, MeaningThreadKind } from "@/lib/api";
+import { WordLensContent, type WordLensState } from "@/components/reading/word-lens-sheet";
+import type { MeaningThread, MeaningThreadKind, WordExplanation } from "@/lib/api";
 import { copyFor } from "@/lib/v4-copy";
 import type { ReadingRecord, UiLanguage } from "@/lib/waddeh-store";
 
@@ -51,12 +52,20 @@ export default function ExplorePanel({
   onActive,
   onClose,
   mobile = false,
+  wordLens,
+  wordLensSaved = false,
+  onSaveWord,
+  onCloseWordLens,
 }: {
   reading: ReadingRecord;
   active: ExploreTool | null;
   onActive: (tool: ExploreTool | null) => void;
   onClose?: () => void;
   mobile?: boolean;
+  wordLens?: WordLensState | null;
+  wordLensSaved?: boolean;
+  onSaveWord?: (word: WordExplanation) => void;
+  onCloseWordLens?: () => void;
 }) {
   const { uiLanguage, recordComprehension } = useWaddeh();
   const copy = copyFor(uiLanguage).reading;
@@ -75,21 +84,31 @@ export default function ExplorePanel({
     { id: "details", label: copy.details, note: uiLanguage === "ar" ? "الأصل، الصعوبة، وسلامة المعنى" : "Source, difficulty, and integrity", icon: ShieldCheck, show: Boolean(standard) },
   ];
 
+  if (wordLens && !mobile && onSaveWord && onCloseWordLens) {
+    return (
+      <div className="v4-explore-panel v4-word-workspace">
+        <button type="button" className="v4-explore-back" onClick={onCloseWordLens}><ArrowLeft className={uiLanguage === "ar" ? "rtl-arrow" : ""} />{copy.explore}</button>
+        <WordLensContent state={wordLens} uiLanguage={uiLanguage} saved={wordLensSaved} onSave={onSaveWord} onClose={onCloseWordLens} embedded />
+      </div>
+    );
+  }
+
   return (
     <div className={`v4-explore-panel ${mobile ? "is-mobile" : ""}`}>
       <div className="v4-explore-heading">
         <div><p className="v4-kicker">{copy.explore}</p><h2>{copy.exploreTitle}</h2></div>
         {onClose && <button type="button" onClick={onClose} aria-label={copy.close}><X /></button>}
       </div>
-      <div className="v4-explore-actions">
+      {!active && <div className="v4-explore-actions">
         {tools.filter((tool) => tool.show).map(({ id, label, note, icon: Icon }) => (
-          <button key={id} type="button" className={active === id ? "active" : ""} onClick={() => onActive(active === id ? null : id)}>
-            <span><Icon /></span><span><strong>{label}</strong><small>{note}</small></span>
+          <button key={id} type="button" aria-label={`${label}: ${note}`} onClick={() => onActive(id)}>
+            <span><Icon /></span><span><strong>{label}</strong><small className="v4-explore-note">{note}</small></span>
           </button>
         ))}
-      </div>
+      </div>}
 
       {active && <section className="v4-explore-content">
+        <button type="button" className="v4-explore-back" onClick={() => onActive(null)}><ArrowLeft className={uiLanguage === "ar" ? "rtl-arrow" : ""} />{copy.exploreTitle}</button>
         {active === "check" && standard && (
           <div className="v4-comprehension">
             <h3>{uiLanguage === "ar" ? standard.comprehension_check.question : standard.comprehension_check.question_english}</h3>

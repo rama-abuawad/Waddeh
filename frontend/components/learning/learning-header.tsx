@@ -16,9 +16,16 @@ export default function LearningHeader() {
     { href: "/learning/history", label: copy.history },
     { href: "/learning/path", label: copy.path },
   ];
+  const activeItem = items.find((item) => item.exact ? pathname === item.href : pathname.startsWith(item.href)) ?? items[0];
+  const descriptions = {
+    "/learning/vocabulary": uiLanguage === "ar" ? "الكلمات والتعبيرات التي حفظتها من قراءاتك." : "Words and expressions saved from your readings.",
+    "/learning/history": uiLanguage === "ar" ? "العربية التي يمكنك العودة إليها ومتابعة فهمها." : "Arabic you can return to and keep understanding.",
+    "/learning/path": uiLanguage === "ar" ? "تقدّمك من العربية الأوضح نحو صياغة المصدر." : "Your progress from clearer Arabic toward the source wording.",
+  } as const;
+  const description = pathname === "/learning" ? copy.description : descriptions[pathname as keyof typeof descriptions];
   return (
     <header className="v4-learning-header">
-      <div><p className="v4-kicker">{copy.title}</p><h1>{copy.description}</h1></div>
+      <div><p className="v4-kicker">{copy.title}</p><h1>{pathname === "/learning" ? copy.title : activeItem.label}</h1>{description && <p className="v4-learning-description">{description}</p>}</div>
       <nav aria-label={uiLanguage === "ar" ? "أقسام تعلّمي" : "My Learning sections"}>
         {items.map((item) => {
           const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);

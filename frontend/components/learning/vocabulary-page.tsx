@@ -36,6 +36,8 @@ export default function VocabularyPage() {
   const [reviewChoice, setReviewChoice] = useState<number | null>(null);
   const [transfer, setTransfer] = useState<TransferState | null>(null);
   const quiz = buildSavedVocabularyQuiz(savedWords, reviewIndex);
+  const learningCount = savedWords.filter((word) => word.mastery !== "mastered").length;
+  const familiarCount = savedWords.length - learningCount;
   const visible = useMemo(() => savedWords.filter((word) => {
     if (filter === "word" && word.kind !== "word") return false;
     if (filter === "expression" && word.kind !== "expression") return false;
@@ -63,7 +65,7 @@ export default function VocabularyPage() {
 
   return (
     <section className="v4-vocabulary-page">
-      <div className="v4-vocab-summary"><div><strong>{savedWords.length}</strong><span>{uiLanguage === "ar" ? "محفوظة" : "saved"}</span></div><div><strong>{savedWords.filter((word) => word.mastery !== "mastered").length}</strong><span>{copy.learningFilter}</span></div><div><strong>{savedWords.filter((word) => word.mastery === "mastered").length}</strong><span>{copy.familiar}</span></div><button type="button" disabled={savedWords.length < 2} onClick={() => { setReviewOpen(true); setReviewChoice(null); }}>{copy.review}</button></div>
+      <div className="v4-vocab-summary"><p>{uiLanguage === "ar" ? <><strong>{savedWords.length}</strong> محفوظة · <b>{learningCount}</b> قيد التعلّم · <b>{familiarCount}</b> مألوفة</> : <><strong>{savedWords.length}</strong> saved · <b>{learningCount}</b> learning · <b>{familiarCount}</b> familiar</>}</p><button type="button" disabled={savedWords.length < 2} onClick={() => { setReviewOpen(true); setReviewChoice(null); }}>{copy.review}</button></div>
       <div className="v4-collection-toolbar"><div className="v4-filter-row">{(["all", "word", "expression", "learning", "mastered"] as Filter[]).map((item) => <button key={item} type="button" className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item === "all" ? copy.all : item === "word" ? copy.words : item === "expression" ? copy.expressions : item === "learning" ? copy.learningFilter : copy.familiar}</button>)}</div><label className="v4-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} /></label></div>
       {visible.length === 0 ? <div className="v4-collection-empty"><Bookmark /><h2>{copy.emptyWords}</h2><Link href="/">{copy.start}</Link></div> : <div className="v4-vocabulary-list">{visible.map((word) => <article key={word.id}><button type="button" className="v4-vocab-open" onClick={() => setSelected(word)}><strong dir="rtl">{word.diacritized_word}</strong><span>{uiLanguage === "ar" ? word.meaning : word.english}</span><small>{masteryLabel(word.mastery, uiLanguage)} · {word.supportCount} {uiLanguage === "ar" ? "مرات" : "encounters"}</small><ChevronRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /></button><button type="button" className="v4-row-delete" onClick={() => removeWord(word.id)} aria-label={copy.remove}><Trash2 /></button></article>)}</div>}
 

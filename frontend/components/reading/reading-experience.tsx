@@ -22,8 +22,15 @@ function ReadingLoader({ language, messages, note }: { language: "ar" | "en"; me
   }, [messages.length]);
   return (
     <section className="v4-reading-loader" role="status" aria-live="polite" dir={language === "ar" ? "rtl" : "ltr"}>
-      <div className="v4-reading-skeleton" aria-hidden="true"><span /><span /><span /><span /></div>
-      <div><p className="v4-kicker">Waddeh</p><h1>{messages[messageIndex]}</h1><p>{note}</p></div>
+      <div className="v4-loader-message"><p className="v4-kicker">Waddeh</p><h1>{messages[messageIndex]}</h1><p>{note}</p><small>{language === "ar" ? "قد يستغرق هذا ما يصل إلى دقيقة." : "This might take up to a minute."}</small></div>
+      <div className="v4-reading-skeleton" aria-hidden="true">
+        <div className="v4-skeleton-main">
+          <section className="v4-skeleton-arabic"><span className="v4-skeleton-label" /><div><i /><i /><i /><i /></div><span className="v4-skeleton-audio" /></section>
+          <div className="v4-skeleton-tabs"><span /><span /><span /></div>
+          <section className="v4-skeleton-meaning"><span className="v4-skeleton-label" /><i /><i /></section>
+        </div>
+        <aside className="v4-skeleton-explore"><span className="v4-skeleton-label" /><i /><i /><i /><i /></aside>
+      </div>
     </section>
   );
 }
@@ -144,7 +151,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
         <article className="v4-reading-main">
           <section className="v4-arabic-surface" aria-labelledby="arabic-title">
             <div className="v4-reading-section-label"><span id="arabic-title">{copy.arabic}</span><small>{sourceLabel}</small></div>
-            <div className="v4-arabic-text" dir="rtl" lang="ar"><InteractiveArabic text={arabicText} onWord={inspectWord} wordHint={uiLanguage === "ar" ? "اضغط لمعرفة المعنى في السياق" : "Select for meaning in context"} /></div>
+            <div className="v4-arabic-text" dir="rtl" lang="ar"><InteractiveArabic text={arabicText} onWord={inspectWord} activeWord={wordLens?.word} wordHint={uiLanguage === "ar" ? "اضغط لمعرفة المعنى في السياق" : "Select for meaning in context"} /></div>
             <SpeechPlayer text={arabicText} language="ar" uiLanguage={uiLanguage} />
           </section>
 
@@ -152,7 +159,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
             {(["understand", "simplify", "learn"] as ReadingTab[]).map((tab) => <button key={tab} type="button" role="tab" aria-selected={selectedTab === tab} className={selectedTab === tab ? "active" : ""} onClick={() => setReadingTab(reading.id, tab)}>{copy[tab]}</button>)}
           </div>
 
-          <section className="v4-mode-content" role="tabpanel">
+          <section key={selectedTab} className="v4-mode-content" role="tabpanel">
             {standard && selectedTab === "understand" && (
               <div className="v4-understand-mode">
                 <div className="v4-mode-heading"><p className="v4-kicker">{copy.understand}</p><h1>{copy.naturalMeaning}</h1></div>
@@ -164,7 +171,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
             {standard && selectedTab === "simplify" && (
               <div className="v4-simplify-mode">
                 <div className="v4-mode-heading v4-mode-heading-row"><div><p className="v4-kicker">{copy.simplify}</p><h1>{copy.clearerArabic}</h1></div><label><input type="checkbox" checked={showDiacritics} onChange={(event) => setShowDiacritics(event.target.checked)} />{copy.diacritics}</label></div>
-                <div className="v4-clear-arabic" dir="rtl" lang="ar"><InteractiveArabic text={showDiacritics ? standard.diacritized_text : standard.simplified_text} onWord={inspectWord} wordHint={uiLanguage === "ar" ? "اضغط لمعرفة المعنى" : "Select for meaning"} /></div>
+                <div className="v4-clear-arabic" dir="rtl" lang="ar"><InteractiveArabic text={showDiacritics ? standard.diacritized_text : standard.simplified_text} onWord={inspectWord} activeWord={wordLens?.word} wordHint={uiLanguage === "ar" ? "اضغط لمعرفة المعنى" : "Select for meaning"} /></div>
                 {standard.change_map.length > 0 && <div className="v4-change-map"><button type="button" aria-expanded={showChanges} onClick={() => setShowChanges((value) => !value)}>{copy.changes}<ChevronDown className={showChanges ? "open" : ""} /></button>{showChanges && <div>{standard.change_map.map((change, index) => <article key={`${index}-${change.original}`}><div><small>{copy.before}</small><p dir="rtl">{change.original}</p></div><ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /><div><small>{copy.after}</small><p dir="rtl">{change.clear}</p></div><aside>{uiLanguage === "ar" ? change.reason : change.reason_english}</aside></article>)}</div>}</div>}
               </div>
             )}
@@ -188,7 +195,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
           <footer className="v4-reading-footer"><button type="button" onClick={() => void copyCurrent()}><Copy />{copied ? copy.copied : copy.copy}</button><Link href="/learning">{uiLanguage === "ar" ? "أكمل في تعلّمي" : "Continue in My Learning"}<ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /></Link></footer>
         </article>
 
-        <aside className="v4-desktop-explore"><ExplorePanel reading={reading} active={activeTool} onActive={setActiveTool} /></aside>
+        <aside className="v4-desktop-explore"><ExplorePanel reading={reading} active={activeTool} onActive={setActiveTool} wordLens={wordLens} wordLensSaved={Boolean(wordLens?.data && savedWords.some((word) => word.word === wordLens.data?.word && word.meaning === wordLens.data?.meaning))} onSaveWord={(word) => saveWord(word, { sourceReadingId: reading.id, sourceTitle: reading.title })} onCloseWordLens={closeWordLens} /></aside>
       </div>
 
       <button type="button" className="v4-mobile-explore-trigger" onClick={() => setMobileExplore(true)}><Menu />{copy.explore}</button>

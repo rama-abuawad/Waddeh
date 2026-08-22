@@ -2,12 +2,13 @@ interface InteractiveArabicProps {
   text: string;
   onWord: (word: string) => void;
   wordHint: string;
+  activeWord?: string;
 }
 
 const arabicWordPattern =
   /[\u0621-\u064a\u066e-\u06d3\u06fa-\u06ff\u0750-\u077f][\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed\u0621-\u064a\u066e-\u06d3\u06fa-\u06ff\u0750-\u077f]*/u;
 
-export default function InteractiveArabic({ text, onWord, wordHint }: InteractiveArabicProps) {
+export default function InteractiveArabic({ text, onWord, wordHint, activeWord }: InteractiveArabicProps) {
   return (
     <p className="whitespace-pre-wrap text-lg leading-10 text-ink/80">
       {text.split(/(\s+)/u).map((token, index) => {
@@ -18,7 +19,7 @@ export default function InteractiveArabic({ text, onWord, wordHint }: Interactiv
           <button
             key={`${index}-${token}`}
             type="button"
-            className="word-token"
+            className={`word-token ${activeWord === word ? "is-active" : ""}`}
             title={wordHint}
             aria-label={`${wordHint}: ${word}`}
             onClick={() => onWord(word)}

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, BookOpenText, FileText, Paperclip, Upload, X } from "lucide-react";
-import { useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
 import type { ReaderType } from "@/lib/api";
@@ -16,6 +16,7 @@ const poetryExample = "على قدر أهل العزم تأتي العزائمُ
 export default function HomeComposer() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
+  const textArea = useRef<HTMLTextAreaElement>(null);
   const { hydrated, uiLanguage, profile, readings, createReading } = useWaddeh();
   const copy = copyFor(uiLanguage).home;
   const [mode, setMode] = useState<InputMode>("standard");
@@ -27,6 +28,15 @@ export default function HomeComposer() {
   const [dragging, setDragging] = useState(false);
 
   const level = levelOverride ?? profile.preferredLevel;
+
+  useEffect(() => {
+    const element = textArea.current;
+    if (!element) return;
+    element.style.height = "0px";
+    const height = Math.min(Math.max(element.scrollHeight, 104), 220);
+    element.style.height = `${height}px`;
+    element.style.overflowY = element.scrollHeight > 220 ? "auto" : "hidden";
+  }, [mode, text]);
 
   const continueItems = readings
     .filter((reading) => reading.status === "ready")
@@ -75,6 +85,10 @@ export default function HomeComposer() {
     router.push(`/reading/${id}`);
   }
 
+  function handleTextChange(event: ChangeEvent<HTMLTextAreaElement>) {
+    setText(event.target.value);
+  }
+
   return (
     <div className="v4-home">
       <section className="v4-home-intro" aria-labelledby="home-title">
@@ -84,15 +98,16 @@ export default function HomeComposer() {
       </section>
 
       <form className="v4-composer" onSubmit={handleSubmit}>
-        <div className="v4-mode-switch" role="tablist" aria-label={uiLanguage === "ar" ? "نوع القراءة" : "Reading mode"}>
-          <button type="button" role="tab" aria-selected={mode === "standard"} className={mode === "standard" ? "active" : ""} onClick={() => setMode("standard")}>{copy.standard}</button>
-          <button type="button" role="tab" aria-selected={mode === "poetry"} className={mode === "poetry" ? "active" : ""} onClick={() => { setMode("poetry"); setFile(null); }}>{copy.poetry}</button>
-        </div>
-
         <div className={`v4-composer-field ${dragging ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
           {dragging && <div className="v4-drop-message"><Upload /> {copy.drop}</div>}
+          <div className="v4-composer-topbar">
+            <div className="v4-mode-switch" role="tablist" aria-label={uiLanguage === "ar" ? "نوع القراءة" : "Reading mode"}>
+              <button type="button" role="tab" aria-selected={mode === "standard"} className={mode === "standard" ? "active" : ""} onClick={() => setMode("standard")}>{copy.standard}</button>
+              <button type="button" role="tab" aria-selected={mode === "poetry"} className={mode === "poetry" ? "active" : ""} onClick={() => { setMode("poetry"); setFile(null); }}>{copy.poetry}</button>
+            </div>
+          </div>
           {!file ? (
-            <textarea dir="rtl" lang="ar" rows={7} maxLength={mode === "poetry" ? 6000 : 15000} value={text} onChange={(event) => setText(event.target.value)} placeholder={copy.placeholder} autoFocus />
+            <textarea ref={textArea} dir="rtl" lang="ar" rows={3} maxLength={mode === "poetry" ? 6000 : 15000} value={text} onChange={handleTextChange} placeholder={copy.placeholder} autoFocus />
           ) : (
             <div className="v4-attachment">
               <span><FileText /></span>

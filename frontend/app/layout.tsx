@@ -1,11 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./v4.css";
 
+import AppShell from "@/components/app-shell";
+import WaddehProvider from "@/components/waddeh-provider";
 import PwaRegister from "./pwa-register";
 
 export const metadata: Metadata = {
   title: "وضّح | Waddeh",
-  description: "وضّح يحوّل النصوص العربية الصعبة إلى عربية واضحة وترجمة إنجليزية دقيقة.",
+  description: "وضّح يساعدك على فهم العربية في سياقها، وتعلّم مفرداتها، والاقتراب تدريجياً من النص الأصلي.",
   applicationName: "وضّح",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -34,7 +37,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ar" dir="rtl" data-scroll-behavior="smooth">
       <body>
-        {children}
+        <WaddehProvider>
+          <AppShell>{children}</AppShell>
+        </WaddehProvider>
         <PwaRegister />
       </body>
     </html>

@@ -1,23 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BookOpenText, FileText, Paperclip, Upload, X } from "lucide-react";
+import { ArrowDown, ArrowRight, FileText, Focus, Languages, Paperclip, TrendingUp, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
 import type { ReaderType } from "@/lib/api";
 import { copyFor } from "@/lib/v4-copy";
-import { learnerLevels, readingPreview, type InputMode } from "@/lib/waddeh-store";
+import { learnerLevels, type InputMode } from "@/lib/waddeh-store";
 
 const standardExample = "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
 const poetryExample = "على قدر أهل العزم تأتي العزائمُ\nوتأتي على قدر الكرام المكارمُ";
+const solutionIcons = [Focus, Languages, TrendingUp];
 
 export default function HomeComposer() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
   const textArea = useRef<HTMLTextAreaElement>(null);
-  const { hydrated, uiLanguage, profile, readings, createReading } = useWaddeh();
+  const { uiLanguage, profile, createReading } = useWaddeh();
   const copy = copyFor(uiLanguage).home;
   const [mode, setMode] = useState<InputMode>("standard");
   const [text, setText] = useState("");
@@ -33,15 +33,10 @@ export default function HomeComposer() {
     const element = textArea.current;
     if (!element) return;
     element.style.height = "0px";
-    const height = Math.min(Math.max(element.scrollHeight, 104), 220);
+    const height = Math.min(Math.max(element.scrollHeight, 192), 360);
     element.style.height = `${height}px`;
-    element.style.overflowY = element.scrollHeight > 220 ? "auto" : "hidden";
+    element.style.overflowY = element.scrollHeight > 360 ? "auto" : "hidden";
   }, [mode, text]);
-
-  const continueItems = readings
-    .filter((reading) => reading.status === "ready")
-    .sort((left, right) => Date.parse(right.lastOpenedAt) - Date.parse(left.lastOpenedAt))
-    .slice(0, 3);
 
   function acceptFile(nextFile: File | null) {
     if (!nextFile) return;
@@ -92,12 +87,37 @@ export default function HomeComposer() {
   return (
     <div className="v4-home">
       <section className="v4-home-intro" aria-labelledby="home-title">
-        <p className="v4-kicker">{copy.eyebrow}</p>
-        <h1 id="home-title"><span>{copy.title}</span><strong>{copy.accent}</strong></h1>
-        <p>{copy.description}</p>
+        <div className="v4-home-intro-copy">
+          <p className="v4-kicker">{copy.eyebrow}</p>
+          <h1 id="home-title"><span>{copy.title}</span><strong>{copy.accent}</strong></h1>
+          <p>{copy.description}</p>
+        </div>
+        <aside id="how-it-works" className="v4-solution-card" aria-labelledby="solution-title">
+          <p className="v4-kicker">{copy.solutionEyebrow}</p>
+          <h2 id="solution-title">{copy.solutionTitle}</h2>
+          <p>{copy.solutionDescription}</p>
+          <div className="v4-solution-features">
+            {copy.solutionItems.map((item, index) => {
+              const Icon = solutionIcons[index];
+              return (
+                <article key={item.title}>
+                  <span><Icon aria-hidden="true" /></span>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </aside>
+        <a className="v4-hero-scroll" href="#reader-composer">
+          <span>{copy.scrollToComposer}</span>
+          <ArrowDown aria-hidden="true" />
+        </a>
       </section>
 
-      <form className="v4-composer" onSubmit={handleSubmit}>
+      <form id="reader-composer" className="v4-composer" onSubmit={handleSubmit}>
         <div className={`v4-composer-field ${dragging ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
           {dragging && <div className="v4-drop-message"><Upload /> {copy.drop}</div>}
           {!file ? (
@@ -124,25 +144,19 @@ export default function HomeComposer() {
           </div>
         </div>
 
-        <details className="v4-reading-preferences">
-          <summary>{copy.preferences}: {learnerLevels.find((item) => item.value === level)?.[uiLanguage] ?? level}</summary>
+        <section className="v4-reading-preferences" aria-labelledby="reading-preferences-title">
+          <div className="v4-preferences-heading">
+            <strong id="reading-preferences-title">{copy.preferences}</strong>
+            <span>{learnerLevels.find((item) => item.value === level)?.[uiLanguage] ?? level}</span>
+          </div>
           <div className="v4-preference-grid">
             <label><span>{uiLanguage === "ar" ? "لمن نوضّح؟" : "Who is reading?"}</span><select value={reader} onChange={(event) => setReader(event.target.value as ReaderType)}><option value="general_reader">{uiLanguage === "ar" ? "قارئ عام" : "General reader"}</option><option value="non_arabic_speaker">{uiLanguage === "ar" ? "غير ناطق بالعربية" : "Non-Arabic speaker"}</option><option value="child">{uiLanguage === "ar" ? "طفل" : "Child"}</option></select></label>
-            <div><span>{uiLanguage === "ar" ? "درجة التبسيط" : "Adaptation level"}</span><div className="v4-level-choices">{learnerLevels.map((item) => <button key={item.value} type="button" className={level === item.value ? "active" : ""} onClick={() => setLevelOverride(item.value)}>{item.value}</button>)}</div></div>
+            <div><span>{uiLanguage === "ar" ? "درجة التبسيط" : "Adaptation level"}</span><div className="v4-level-choices">{learnerLevels.map((item) => <button key={item.value} type="button" aria-pressed={level === item.value} className={level === item.value ? "active" : ""} onClick={() => setLevelOverride(item.value)}>{item.value}</button>)}</div></div>
           </div>
-        </details>
+        </section>
 
         {error && <p className="v4-form-error" role="alert">{error}</p>}
       </form>
-
-      {hydrated && continueItems.length > 0 && (
-        <section className="v4-continue" aria-labelledby="continue-title">
-          <div className="v4-section-heading"><div><p className="v4-kicker">{copy.continue}</p><h2 id="continue-title">{uiLanguage === "ar" ? "ارجع إلى العربية التي بدأت بها" : "Return to the Arabic you started"}</h2></div><Link href="/learning">{copy.viewLearning}<ArrowRight /></Link></div>
-          <div className="v4-continue-list">
-            {continueItems.map((reading) => <Link key={reading.id} href={`/reading/${reading.id}`}><span><BookOpenText /></span><div><strong dir="rtl">{reading.title}</strong><p>{readingPreview(reading, uiLanguage).slice(0, 120)}</p></div><ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /></Link>)}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

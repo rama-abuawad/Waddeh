@@ -15,12 +15,14 @@ export default function LearningHeader() {
     { href: "/learning/vocabulary", label: copy.vocabulary },
     { href: "/learning/history", label: copy.history },
     { href: "/learning/path", label: copy.path },
+    { href: "/learning/map", label: copy.map },
   ];
   const activeItem = items.find((item) => item.exact ? pathname === item.href : pathname.startsWith(item.href)) ?? items[0];
   const descriptions = {
     "/learning/vocabulary": uiLanguage === "ar" ? "الكلمات والتعبيرات التي حفظتها من قراءاتك." : "Words and expressions saved from your readings.",
     "/learning/history": uiLanguage === "ar" ? "العربية التي يمكنك العودة إليها ومتابعة فهمها." : "Arabic you can return to and keep understanding.",
     "/learning/path": uiLanguage === "ar" ? "تقدّمك من العربية الأوضح نحو صياغة المصدر." : "Your progress from clearer Arabic toward the source wording.",
+    "/learning/map": uiLanguage === "ar" ? "صورة واضحة لما تفهمه الآن، وما ينمو مع كل قراءة." : "A clear view of what you understand now and what grows with each reading.",
   } as const;
   const description = pathname === "/learning" ? copy.description : descriptions[pathname as keyof typeof descriptions];
   return (

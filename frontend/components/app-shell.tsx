@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpenText, House, UserRound } from "lucide-react";
+import { BookOpenText, House, LogIn, UserRound } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
@@ -24,6 +24,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { uiLanguage, setUiLanguage } = useWaddeh();
   const copy = copyFor(uiLanguage).shell;
+  const usesHeroNavbar = pathname === "/" || pathname.startsWith("/learning");
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -34,7 +35,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="v4-app-shell">
       <a className="v4-skip-link" href="#main-content">{uiLanguage === "ar" ? "انتقل إلى المحتوى" : "Skip to content"}</a>
-      <header className="v4-topbar">
+      <header className={`v4-topbar ${usesHeroNavbar ? "is-home" : ""}`}>
         <div className="v4-topbar-inner">
           <Link href="/" className="v4-wordmark" aria-label={uiLanguage === "ar" ? "وضّح — الرئيسية" : "Waddeh — Home"}>
             <Image src="/brand/Waddeh_Brand/waddeh-icon.svg" alt="" width={40} height={40} priority />
@@ -46,7 +47,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="v4-topbar-actions">
             <button type="button" className="v4-language-button" onClick={() => setUiLanguage(uiLanguage === "ar" ? "en" : "ar")}>{copy.language}</button>
-            <Link href="/profile" className={`v4-avatar ${isActive(pathname, "/profile") ? "active" : ""}`} aria-label={copy.profile}>و</Link>
+            <Link href="/auth" className="v4-login-button">
+              <LogIn aria-hidden="true" />
+              <span>{copy.signIn}</span>
+            </Link>
+            <Link href={pathname === "/" ? "#reader-composer" : "/#reader-composer"} className="v4-navbar-cta">
+              <span>{copy.start}</span>
+            </Link>
           </div>
         </div>
       </header>

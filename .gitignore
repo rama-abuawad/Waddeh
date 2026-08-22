@@ -40,3 +40,6 @@ work/
 dist/
 build/
 *.egg-info/
+
+# Local design reference only
+reference/base44/

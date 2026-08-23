@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowDown, ArrowRight, FileText, Focus, Languages, Paperclip, TrendingUp, Upload, X } from "lucide-react";
+import { ArrowRight, FileText, Paperclip, Upload, X } from "lucide-react";
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 
 import { useWaddeh } from "@/components/waddeh-provider";
@@ -11,8 +11,6 @@ import { learnerLevels, type InputMode } from "@/lib/waddeh-store";
 
 const standardExample = "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
 const poetryExample = "على قدر أهل العزم تأتي العزائمُ\nوتأتي على قدر الكرام المكارمُ";
-const solutionIcons = [Focus, Languages, TrendingUp];
-
 export default function HomeComposer() {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -85,43 +83,22 @@ export default function HomeComposer() {
   }
 
   return (
-    <div className="v4-home">
-      <section className="v4-home-intro" aria-labelledby="home-title">
-        <div className="v4-home-intro-copy">
-          <p className="v4-kicker">{copy.eyebrow}</p>
-          <h1 id="home-title"><span>{copy.title}</span><strong>{copy.accent}</strong></h1>
+    <section id="start" className="v6-start-section" aria-labelledby="start-reading-title">
+      <div className="v6-start-glow v6-start-glow-one" aria-hidden="true" />
+      <div className="v6-start-glow v6-start-glow-two" aria-hidden="true" />
+      <div className="v6-start-watermark" dir="rtl" aria-hidden="true">افهم</div>
+      <div className="v6-start-inner">
+        <header className="v6-start-heading">
+          <p>{copy.eyebrow}</p>
+          <h2 id="start-reading-title">{copy.title} <em className="serif-display">{copy.accent}</em></h2>
           <p>{copy.description}</p>
-        </div>
-        <aside id="how-it-works" className="v4-solution-card" aria-labelledby="solution-title">
-          <p className="v4-kicker">{copy.solutionEyebrow}</p>
-          <h2 id="solution-title">{copy.solutionTitle}</h2>
-          <p>{copy.solutionDescription}</p>
-          <div className="v4-solution-features">
-            {copy.solutionItems.map((item, index) => {
-              const Icon = solutionIcons[index];
-              return (
-                <article key={item.title}>
-                  <span><Icon aria-hidden="true" /></span>
-                  <div>
-                    <h3>{item.title}</h3>
-                    <p>{item.description}</p>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </aside>
-        <a className="v4-hero-scroll" href="#reader-composer">
-          <span>{copy.scrollToComposer}</span>
-          <ArrowDown aria-hidden="true" />
-        </a>
-      </section>
-
-      <form id="reader-composer" className="v4-composer" onSubmit={handleSubmit}>
+        </header>
+        <div className="v6-start-card">
+          <form id="reader-composer" className="v4-composer" onSubmit={handleSubmit}>
         <div className={`v4-composer-field ${dragging ? "is-dragging" : ""}`} onDragEnter={(event) => { event.preventDefault(); setDragging(true); }} onDragOver={(event) => event.preventDefault()} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
           {dragging && <div className="v4-drop-message"><Upload /> {copy.drop}</div>}
           {!file ? (
-            <textarea ref={textArea} dir="rtl" lang="ar" rows={3} maxLength={mode === "poetry" ? 6000 : 15000} value={text} onChange={handleTextChange} placeholder={copy.placeholder} autoFocus />
+            <textarea ref={textArea} dir="rtl" lang="ar" rows={3} maxLength={mode === "poetry" ? 6000 : 15000} value={text} onChange={handleTextChange} placeholder={copy.placeholder} aria-label={copy.placeholder} />
           ) : (
             <div className="v4-attachment">
               <span><FileText /></span>
@@ -156,7 +133,9 @@ export default function HomeComposer() {
         </section>
 
         {error && <p className="v4-form-error" role="alert">{error}</p>}
-      </form>
-    </div>
+          </form>
+        </div>
+      </div>
+    </section>
   );
 }

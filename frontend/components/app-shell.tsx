@@ -32,6 +32,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   if (pathname.startsWith("/auth")) return <>{children}</>;
 
+  if (pathname === "/") {
+    return (
+      <div className="v4-app-shell v6-root-shell">
+        <a className="v4-skip-link" href="#main-content">{uiLanguage === "ar" ? "انتقل إلى المحتوى" : "Skip to content"}</a>
+        <main id="main-content" className="v4-main v6-main">{children}</main>
+      </div>
+    );
+  }
+
   return (
     <div className="v4-app-shell">
       <a className="v4-skip-link" href="#main-content">{uiLanguage === "ar" ? "انتقل إلى المحتوى" : "Skip to content"}</a>
@@ -51,7 +60,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <LogIn aria-hidden="true" />
               <span>{copy.signIn}</span>
             </Link>
-            <Link href={pathname === "/" ? "#reader-composer" : "/#reader-composer"} className="v4-navbar-cta">
+            <Link href="/#start" className="v4-navbar-cta">
               <span>{copy.start}</span>
             </Link>
           </div>

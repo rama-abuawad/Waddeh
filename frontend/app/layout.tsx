@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./v4.css";
+import "./landing-v6.css";
 
 import AppShell from "@/components/app-shell";
 import WaddehProvider from "@/components/waddeh-provider";

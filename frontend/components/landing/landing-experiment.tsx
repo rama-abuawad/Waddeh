@@ -18,6 +18,7 @@ import {
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 
+import { useAuth } from "@/components/auth-provider";
 import type { UiLanguage } from "@/lib/waddeh-store";
 
 interface LandingExperimentProps {
@@ -206,10 +207,11 @@ function HeroReadingCard({ uiLanguage }: { uiLanguage: UiLanguage }) {
 }
 
 function LandingNavbar({ uiLanguage, onLanguageChange }: LandingExperimentProps) {
+  const { user, loading } = useAuth();
   const copy = landingCopy[uiLanguage].nav;
   const nextLanguage = uiLanguage === "ar" ? "en" : "ar";
   return (
-    <nav className="relative z-30 px-4 py-5 sm:px-6 sm:py-6" aria-label={uiLanguage === "ar" ? "التنقل الرئيسي" : "Primary navigation"}>
+    <nav className="hero-navbar relative z-30 px-4 py-5 sm:px-6 sm:py-6" aria-label={uiLanguage === "ar" ? "التنقل الرئيسي" : "Primary navigation"}>
       <div className="liquid-glass mx-auto flex max-w-6xl items-center justify-between rounded-full px-4 py-2.5 sm:px-6 sm:py-3">
         <div className="flex items-center gap-6">
           <a href="#start" className="flex items-center gap-3 text-white" aria-label={uiLanguage === "ar" ? "وضّح — ابدأ قراءة" : "Waddeh — start a reading"}>
@@ -230,7 +232,14 @@ function LandingNavbar({ uiLanguage, onLanguageChange }: LandingExperimentProps)
             <BookOpenText size={15} aria-hidden="true" /><span className="hidden lg:inline">{copy.learning}</span>
           </Link>
           <button type="button" onClick={() => onLanguageChange(nextLanguage)} className="min-h-11 rounded-full px-3 py-2 text-xs font-semibold text-white/72 transition-colors hover:text-white sm:px-4" aria-label={uiLanguage === "ar" ? "Switch to English" : "التبديل إلى العربية"}>{copy.language}</button>
-          <Link href="/auth" className="liquid-glass inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-xs font-semibold text-white sm:px-5">{copy.signIn}</Link>
+          {!loading && (user ? (
+            <Link href="/profile" className="liquid-glass inline-flex min-h-11 max-w-32 items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold text-white sm:max-w-44 sm:px-4" aria-label={uiLanguage === "ar" ? "فتح الملف الشخصي" : "Open profile"}>
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-white/12 text-[.65rem]">{(user.displayName ?? user.email ?? "W")[0].toUpperCase()}</span>
+              <span className="hidden truncate sm:inline">{user.displayName ?? user.email}</span>
+            </Link>
+          ) : (
+            <Link href="/auth" className="liquid-glass inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-xs font-semibold text-white sm:px-5">{copy.signIn}</Link>
+          ))}
         </div>
       </div>
     </nav>
@@ -251,28 +260,28 @@ function HeroSection(props: LandingExperimentProps) {
       <div className="hero-watermark hero-watermark-one" dir="rtl">وضّح</div><div className="hero-watermark hero-watermark-two" dir="rtl">اقرأ</div>
       <HeroReadingCard uiLanguage={uiLanguage} />
       <LandingNavbar {...props} />
-      <div className="relative z-20 flex flex-1 items-center px-6 pb-14 pt-8 sm:px-8 md:pb-20 lg:px-10">
+      <div className="hero-content relative z-20 flex flex-1 items-center px-6 pb-14 pt-8 sm:px-8 md:pb-20 lg:px-10">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,.92fr)]">
-          <div className="max-w-[42rem]">
-            <p className="mb-5 text-[0.72rem] font-semibold uppercase tracking-[0.3em] text-[#9DE5D2]/78">{copy.eyebrow}</p>
-            <h1 className="text-[3.7rem] font-medium leading-[0.94] tracking-[-0.06em] text-white sm:text-[4.8rem] md:text-[5.45rem] lg:text-[5.25rem] xl:text-[5.75rem]">
+          <div className="hero-copy max-w-[42rem]">
+            <p className="hero-eyebrow mb-5 text-[0.72rem] font-semibold uppercase tracking-[0.3em] text-[#9DE5D2]/78">{copy.eyebrow}</p>
+            <h1 className="hero-heading text-[3.7rem] font-medium leading-[0.94] tracking-[-0.06em] text-white sm:text-[4.8rem] md:text-[5.45rem] lg:text-[5.25rem] xl:text-[5.75rem]">
               {copy.title}{" "}<em className="serif-display font-normal italic tracking-[-0.035em] text-[#D9F4EC]/86">{copy.accent}</em>
             </h1>
-            <p className="mt-7 max-w-[35rem] text-[1rem] leading-7 text-white/67 sm:text-[1.08rem]">{copy.description}</p>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
+            <p className="hero-description mt-7 max-w-[35rem] text-[1rem] leading-7 text-white/67 sm:text-[1.08rem]">{copy.description}</p>
+            <div className="hero-actions mt-9 flex flex-wrap items-center gap-3">
               <a href="#start" className="group inline-flex items-center gap-3 rounded-full bg-[#fffef9] px-5 py-3 text-sm font-semibold text-[#084e44] shadow-[0_12px_28px_rgba(3,29,24,.18)] transition-transform hover:-translate-y-0.5">
                 {copy.primary}<span className="grid h-7 w-7 place-items-center rounded-full bg-[#dce9df] text-[#0e6b5c] transition-transform group-hover:translate-x-0.5"><ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} size={15} strokeWidth={1.8} /></span>
               </a>
               <a href="#experience" className="liquid-glass rounded-full px-5 py-3 text-sm font-semibold text-white/80 transition-colors hover:text-white">{copy.secondary}</a>
             </div>
-            <div className="mt-7 flex flex-wrap gap-2.5">
+            <div className="hero-chips mt-7 flex flex-wrap gap-2.5">
               {chips.map(({ icon: Icon, label }) => <span key={label} className="hero-chip"><Icon size={14} strokeWidth={1.7} />{label}</span>)}
             </div>
           </div>
-          <div className="hidden min-h-[36rem] lg:block" />
+          <div className="hero-card-space hidden min-h-[36rem] lg:block" />
         </div>
       </div>
-      <a href="#about" className="relative z-20 mx-auto mb-7 flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40 transition-colors hover:text-white/70">{copy.explore}<ArrowDown size={14} /></a>
+      <a href="#about" className="hero-explore relative z-20 mx-auto mb-7 flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-white/40 transition-colors hover:text-white/70">{copy.explore}<ArrowDown size={14} /></a>
     </section>
   );
 }

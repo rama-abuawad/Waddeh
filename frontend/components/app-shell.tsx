@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { BookOpenText, House, LogIn, UserRound } from "lucide-react";
 import { useEffect, type ReactNode } from "react";
 
+import { useAuth } from "@/components/auth-provider";
 import { useWaddeh } from "@/components/waddeh-provider";
 import { copyFor } from "@/lib/v4-copy";
 
@@ -22,6 +23,7 @@ function isActive(pathname: string, href: string): boolean {
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const { user, loading: authLoading } = useAuth();
   const { uiLanguage, setUiLanguage } = useWaddeh();
   const copy = copyFor(uiLanguage).shell;
   const usesHeroNavbar = pathname === "/" || pathname.startsWith("/learning");
@@ -57,10 +59,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </nav>
           <div className="v4-topbar-actions">
             <button type="button" className="v4-language-button" onClick={() => setUiLanguage(uiLanguage === "ar" ? "en" : "ar")}>{copy.language}</button>
-            <Link href="/auth" className="v4-login-button">
-              <LogIn aria-hidden="true" />
-              <span>{copy.signIn}</span>
-            </Link>
+            {!authLoading && <Link href={user ? "/profile" : "/auth"} className="v4-login-button">
+              {user ? <UserRound aria-hidden="true" /> : <LogIn aria-hidden="true" />}
+              <span className={user ? "max-w-32 truncate" : ""}>{user ? (user.displayName ?? user.email ?? copy.profile) : copy.signIn}</span>
+            </Link>}
             <Link href="/#start" className="v4-navbar-cta">
               <span>{copy.start}</span>
             </Link>

@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { useAuth } from "@/components/auth-provider";
 import {
   explainPoetry,
   simplifyPdf,
@@ -20,16 +21,12 @@ import {
   type WordExplanation,
 } from "@/lib/api";
 import {
-  STORAGE_KEYS,
   buildReadingMemorySnapshot,
   clampLevel,
   createLocalId,
   deriveReadingTitle,
   initialProfile,
   masteryFromEvidence,
-  normalizeProfile,
-  normalizeReadings,
-  normalizeSavedWords,
   placementLevelFromScore,
   type LearningProfile,
   type NewReadingInput,
@@ -39,6 +36,15 @@ import {
   type SavedWord,
   type UiLanguage,
 } from "@/lib/waddeh-store";
+import {
+  createSnapshot,
+  loadAccountSnapshot,
+  loadLocalSnapshot,
+  saveLocalSnapshot,
+  syncAccountSnapshot,
+  type DeletionState,
+  type WaddehSnapshot,
+} from "@/lib/waddeh-repository";
 
 interface SaveWordOptions {
   kind?: SavedItemKind;
@@ -53,6 +59,11 @@ interface WaddehContextValue {
   savedWords: SavedWord[];
   profile: LearningProfile;
   readings: ReadingRecord[];
+  cloudSync: {
+    state: "guest" | "syncing" | "synced" | "offline";
+    lastSyncedAt?: string;
+    error?: string;
+  };
   createReading: (input: NewReadingInput) => string;
   processReading: (id: string) => Promise<void>;
   retryReading: (id: string) => void;
@@ -72,76 +83,137 @@ interface WaddehContextValue {
 
 const WaddehContext = createContext<WaddehContextValue | null>(null);
 
-function writeJson(key: string, value: unknown) {
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    // Local persistence is helpful but must never block the reading flow.
-  }
-}
-
-function persistReadings(records: ReadingRecord[]) {
-  const limited = records.slice(0, 16);
-  try {
-    window.localStorage.setItem(STORAGE_KEYS.readings, JSON.stringify(limited));
-  } catch {
-    try {
-      window.localStorage.setItem(STORAGE_KEYS.readings, JSON.stringify(limited.slice(0, 6)));
-    } catch {
-      // Storage quotas vary by browser; current in-memory state remains usable.
-    }
-  }
-}
-
 export default function WaddehProvider({ children }: { children: ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const [hydrated, setHydrated] = useState(false);
   const [uiLanguage, setUiLanguageState] = useState<UiLanguage>("ar");
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
   const [profile, setProfile] = useState<LearningProfile>(initialProfile);
   const [readings, setReadings] = useState<ReadingRecord[]>([]);
+  const [deletions, setDeletions] = useState<DeletionState>({ readingIds: [], vocabularyIds: [] });
+  const [cloudSync, setCloudSync] = useState<WaddehContextValue["cloudSync"]>({ state: "guest" });
   const readingsRef = useRef<ReadingRecord[]>([]);
   const savedWordsRef = useRef<SavedWord[]>([]);
   const profileRef = useRef<LearningProfile>(initialProfile);
   const pendingFiles = useRef(new Map<string, File>());
   const processing = useRef(new Set<string>());
+  const activeUid = useRef<string | null>(null);
+  const switchingScope = useRef(false);
 
   useLayoutEffect(() => {
-    const storedLanguage = window.localStorage.getItem(STORAGE_KEYS.language);
-    if (storedLanguage === "ar" || storedLanguage === "en") setUiLanguageState(storedLanguage);
-    const restore = <T,>(key: string, normalize: (value: never) => T, apply: (value: T) => void) => {
-      try {
-        const raw = window.localStorage.getItem(key);
-        if (raw) apply(normalize(JSON.parse(raw) as never));
-      } catch {
-        // One corrupt optional record must not prevent other local state from opening.
-      }
-    };
-    restore(STORAGE_KEYS.vocabulary, normalizeSavedWords, setSavedWords);
-    restore(STORAGE_KEYS.profile, normalizeProfile, setProfile);
-    restore(STORAGE_KEYS.readings, normalizeReadings, setReadings);
+    const snapshot = loadLocalSnapshot();
+    setUiLanguageState(snapshot.uiLanguage);
+    setSavedWords(snapshot.savedWords);
+    setProfile(snapshot.profile);
+    setReadings(snapshot.readings);
+    setDeletions(snapshot.deletions);
     setHydrated(true);
   }, []);
 
   useEffect(() => {
     readingsRef.current = readings;
-    if (hydrated) persistReadings(readings);
-  }, [hydrated, readings]);
+  }, [readings]);
 
   useEffect(() => {
     savedWordsRef.current = savedWords;
-    if (hydrated) writeJson(STORAGE_KEYS.vocabulary, savedWords);
-  }, [hydrated, savedWords]);
+  }, [savedWords]);
 
   useEffect(() => {
     profileRef.current = profile;
-    if (hydrated) writeJson(STORAGE_KEYS.profile, profile);
-  }, [hydrated, profile]);
+  }, [profile]);
 
   useEffect(() => {
     document.documentElement.lang = uiLanguage;
     document.documentElement.dir = uiLanguage === "ar" ? "rtl" : "ltr";
-    if (hydrated) window.localStorage.setItem(STORAGE_KEYS.language, uiLanguage);
-  }, [hydrated, uiLanguage]);
+  }, [uiLanguage]);
+
+  const applySnapshot = useCallback((snapshot: WaddehSnapshot) => {
+    setUiLanguageState(snapshot.uiLanguage);
+    setProfile(snapshot.profile);
+    setReadings(snapshot.readings);
+    setSavedWords(snapshot.savedWords);
+    setDeletions(snapshot.deletions);
+    readingsRef.current = snapshot.readings;
+    savedWordsRef.current = snapshot.savedWords;
+    profileRef.current = snapshot.profile;
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated || authLoading) return;
+    const nextUid = user?.uid ?? null;
+    if (nextUid === activeUid.current) return;
+    let cancelled = false;
+    switchingScope.current = true;
+
+    if (!nextUid) {
+      const guestSnapshot = loadLocalSnapshot();
+      activeUid.current = null;
+      applySnapshot(guestSnapshot);
+      setCloudSync({ state: "guest" });
+      window.setTimeout(() => { switchingScope.current = false; }, 0);
+      return;
+    }
+
+    setCloudSync({ state: "syncing" });
+    const guestSnapshot = loadLocalSnapshot();
+    loadAccountSnapshot(nextUid, guestSnapshot).then((result) => {
+      if (cancelled) return;
+      activeUid.current = nextUid;
+      applySnapshot(result.snapshot);
+      setCloudSync(result.cloudAvailable
+        ? { state: "synced", lastSyncedAt: new Date().toISOString() }
+        : { state: "offline", error: result.error });
+      window.setTimeout(() => { switchingScope.current = false; }, 0);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applySnapshot, authLoading, hydrated, user?.uid]);
+
+  useEffect(() => {
+    if (!hydrated || authLoading || switchingScope.current) return;
+    const snapshot = createSnapshot(uiLanguage, profile, readings, savedWords, deletions);
+    const uid = activeUid.current;
+    saveLocalSnapshot(snapshot, uid ?? undefined);
+    if (!uid) return;
+    setCloudSync((current) => current.state === "syncing" ? current : { ...current, state: "syncing" });
+    const timeout = window.setTimeout(() => {
+      syncAccountSnapshot(uid, snapshot).then(() => {
+        if (activeUid.current === uid) setCloudSync({ state: "synced", lastSyncedAt: new Date().toISOString() });
+      }).catch((error) => {
+        if (activeUid.current === uid) setCloudSync({
+          state: "offline",
+          error: error instanceof Error ? error.message : "Cloud sync is unavailable.",
+        });
+      });
+    }, 850);
+    return () => window.clearTimeout(timeout);
+  }, [authLoading, deletions, hydrated, profile, readings, savedWords, uiLanguage]);
+
+  useEffect(() => {
+    if (!hydrated || authLoading || cloudSync.state !== "offline") return;
+    const retry = () => {
+      const uid = activeUid.current;
+      if (!uid) return;
+      const snapshot = createSnapshot(uiLanguage, profile, readings, savedWords, deletions);
+      setCloudSync({ state: "syncing" });
+      syncAccountSnapshot(uid, snapshot).then(() => {
+        if (activeUid.current === uid) setCloudSync({ state: "synced", lastSyncedAt: new Date().toISOString() });
+      }).catch((error) => {
+        if (activeUid.current === uid) setCloudSync({
+          state: "offline",
+          error: error instanceof Error ? error.message : "Cloud sync is unavailable.",
+        });
+      });
+    };
+    const timeout = window.setTimeout(retry, 15_000);
+    window.addEventListener("online", retry);
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener("online", retry);
+    };
+  }, [authLoading, cloudSync.state, deletions, hydrated, profile, readings, savedWords, uiLanguage]);
 
   const setUiLanguage = useCallback((language: UiLanguage) => setUiLanguageState(language), []);
 
@@ -259,6 +331,10 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
   const deleteReading = useCallback((id: string) => {
     pendingFiles.current.delete(id);
     setReadings((current) => current.filter((record) => record.id !== id));
+    setDeletions((current) => ({
+      ...current,
+      readingIds: [...new Set([...current.readingIds, id])].slice(-200),
+    }));
   }, []);
 
   const setReadingTab = useCallback((id: string, tab: ReadingTab) => {
@@ -306,6 +382,10 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
 
   const removeWord = useCallback((id: string) => {
     setSavedWords((current) => current.filter((word) => word.id !== id));
+    setDeletions((current) => ({
+      ...current,
+      vocabularyIds: [...new Set([...current.vocabularyIds, id])].slice(-500),
+    }));
   }, []);
 
   const recordVocabularyQuiz = useCallback((id: string, correct: boolean) => {
@@ -404,6 +484,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     savedWords,
     profile,
     readings,
+    cloudSync,
     createReading,
     processReading,
     retryReading,
@@ -420,7 +501,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     setPreferredLevel,
     completePlacement,
   }), [
-    hydrated, uiLanguage, setUiLanguage, savedWords, profile, readings, createReading,
+    hydrated, uiLanguage, setUiLanguage, savedWords, profile, readings, cloudSync, createReading,
     processReading, retryReading, reattachPdf, reopenReading, deleteReading, setReadingTab, saveWord,
     removeWord, recordVocabularyQuiz, recordTransferResult, recordComprehension,
     recordMeaningThread, setPreferredLevel, completePlacement,

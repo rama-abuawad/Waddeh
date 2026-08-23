@@ -4,6 +4,7 @@ import "./v4.css";
 import "./landing-v6.css";
 
 import AppShell from "@/components/app-shell";
+import AuthProvider from "@/components/auth-provider";
 import WaddehProvider from "@/components/waddeh-provider";
 import PwaRegister from "./pwa-register";
 
@@ -38,9 +39,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="ar" dir="rtl" data-scroll-behavior="smooth">
       <body>
-        <WaddehProvider>
-          <AppShell>{children}</AppShell>
-        </WaddehProvider>
+        <AuthProvider>
+          <WaddehProvider>
+            <AppShell>{children}</AppShell>
+          </WaddehProvider>
+        </AuthProvider>
         <PwaRegister />
       </body>
     </html>

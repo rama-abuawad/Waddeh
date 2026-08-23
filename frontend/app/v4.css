@@ -963,7 +963,7 @@ body {
 .v4-profile-signin > svg { width: 1.2rem; color: var(--v4-mint); }
 .v4-profile-signin h2 { font-size: 1.1rem; }
 .v4-profile-signin p { margin-top: .35rem; color: var(--v4-ink-soft); font-size: .72rem; line-height: 1.6; }
-.v4-profile-signin a { border-radius: .7rem; background: var(--v4-teal); padding: .65rem .85rem; color: white; font-size: .72rem; font-weight: 820; }
+.v4-profile-signin a, .v4-profile-signin button { border: 0; border-radius: .7rem; background: var(--v4-teal); padding: .65rem .85rem; color: white; font-size: .72rem; font-weight: 820; cursor: pointer; }
 
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible {
   outline: 2px solid var(--v4-teal);

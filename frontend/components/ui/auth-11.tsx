@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 
+import { authErrorMessage, useAuth } from '@/components/auth-provider';
 import { useWaddeh } from '@/components/waddeh-provider';
 
 type AuthMode = 'signIn' | 'create';
@@ -41,6 +43,15 @@ const copy = {
     emailPlaceholder: 'name@example.com',
     password: 'كلمة المرور',
     passwordPlaceholder: 'أدخل كلمة المرور',
+    reset: 'نسيت كلمة المرور؟',
+    resetSent: 'أرسلنا رابط إعادة التعيين إلى بريدك الإلكتروني.',
+    unavailable: 'ربط Firebase غير مكتمل في هذا الإصدار. وضع الضيف متاح بالكامل.',
+    signedTitle: 'أهلاً بعودتك',
+    signedBody: 'حسابك متصل، ويجري حفظ تقدّمك ومزامنته بأمان.',
+    continue: 'متابعة التعلّم',
+    signOut: 'تسجيل الخروج',
+    verified: 'البريد موثّق',
+    unverified: 'تحقق من بريدك لإكمال التوثيق',
   },
   en: {
     dir: 'ltr',
@@ -72,6 +83,15 @@ const copy = {
     emailPlaceholder: 'name@example.com',
     password: 'Password',
     passwordPlaceholder: 'Enter your password',
+    reset: 'Forgot password?',
+    resetSent: 'A password reset link has been sent to your email.',
+    unavailable: 'Firebase setup is incomplete in this build. Guest mode remains fully available.',
+    signedTitle: 'Welcome back',
+    signedBody: 'Your account is connected and your learning progress can sync securely.',
+    continue: 'Continue learning',
+    signOut: 'Sign out',
+    verified: 'Email verified',
+    unverified: 'Check your inbox to verify your email',
   },
 } as const;
 
@@ -98,11 +118,48 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Auth11() {
   const [mode, setMode] = useState<AuthMode>('signIn');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const { uiLanguage: language, setUiLanguage: setLanguage } = useWaddeh();
+  const { configured, loading, user, signInWithGoogle, signInWithEmail, createAccount, resetPassword, signOut } = useAuth();
+  const router = useRouter();
 
   const content = copy[language];
   const modeCopy = content.modes[mode];
   const direction = content.dir;
+
+  const run = async (action: () => Promise<void>, navigate = false) => {
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await action();
+      if (navigate) router.push('/learning');
+    } catch (authError) {
+      setError(authErrorMessage(authError, language));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitEmail = () => run(
+    () => mode === 'signIn' ? signInWithEmail(email, password) : createAccount(email, password),
+    true,
+  );
+
+  const sendReset = () => {
+    if (!email.trim()) {
+      setError(language === 'ar' ? 'أدخل بريدك الإلكتروني أولاً.' : 'Enter your email address first.');
+      return;
+    }
+    run(async () => {
+      await resetPassword(email);
+      setNotice(content.resetSent);
+    });
+  };
 
   return (
     <main
@@ -153,6 +210,28 @@ export default function Auth11() {
             </div>
           </div>
 
+          {loading ? (
+            <div className="grid min-h-60 place-items-center" role="status">
+              <span className="size-8 animate-spin rounded-full border-2 border-[#0e6b5c]/20 border-t-[#0e6b5c]" />
+              <span className="sr-only">{language === 'ar' ? 'جارٍ تحميل الحساب' : 'Loading account'}</span>
+            </div>
+          ) : user ? (
+            <div className="rounded-[2rem] border border-[#17372f]/10 bg-white/70 p-7 shadow-[0_20px_60px_rgba(23,55,47,.08)]">
+              <div className="flex items-center gap-4">
+                {user.photoURL ? <div aria-hidden="true" className="size-14 rounded-full bg-cover bg-center" style={{ backgroundImage: `url("${user.photoURL.replaceAll('"', '\\"')}")` }} /> : <div className="grid size-14 place-items-center rounded-full bg-[#dce9df] text-lg font-black text-[#0e6b5c]">{(user.email ?? 'W')[0].toUpperCase()}</div>}
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-black">{content.signedTitle}</h1>
+                  <p className="truncate text-sm text-[#17372f]/60" dir="ltr">{user.email}</p>
+                </div>
+              </div>
+              <p className="mt-6 text-sm leading-6 text-[#17372f]/65">{content.signedBody}</p>
+              <p className="mt-3 text-xs font-bold text-[#0e6b5c]">{user.emailVerified ? content.verified : content.unverified}</p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                <Link href="/learning" className="flex min-h-12 items-center justify-center rounded-2xl bg-[#0e6b5c] px-4 text-sm font-black text-white">{content.continue}</Link>
+                <button type="button" disabled={busy} onClick={() => run(signOut)} className="min-h-12 rounded-2xl border border-[#17372f]/12 px-4 text-sm font-black disabled:opacity-50">{content.signOut}</button>
+              </div>
+            </div>
+          ) : <>
           <div className="mb-7 text-start">
             <div className="mb-6 flex gap-7 border-b border-[#17372f]/10 dark:border-white/10">
               {(['signIn', 'create'] as const).map((authMode) => (
@@ -181,7 +260,9 @@ export default function Auth11() {
           <div className="mb-6 grid gap-3">
             <button
               type="button"
-              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl border border-[#17372f]/10 bg-white/70 px-4 py-3 text-sm font-black leading-none text-[#17372f] transition-colors hover:border-[#0e6b5c]/25 hover:bg-white active:bg-[#f5fbf8] dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+              disabled={busy || !configured}
+              onClick={() => run(signInWithGoogle, true)}
+              className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-2xl border border-[#17372f]/10 bg-white/70 px-4 py-3 text-sm font-black leading-none text-[#17372f] transition-colors hover:border-[#0e6b5c]/25 hover:bg-white active:bg-[#f5fbf8] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
             >
               <GoogleIcon className="text-[16px]" />
               <span>{content.google}</span>
@@ -204,7 +285,7 @@ export default function Auth11() {
 
           <form
             className="flex flex-col gap-4"
-            onSubmit={(event) => event.preventDefault()}
+            onSubmit={(event) => { event.preventDefault(); submitEmail(); }}
           >
             <div className="flex flex-col gap-2">
               <label
@@ -216,6 +297,9 @@ export default function Auth11() {
               <input
                 id="email"
                 type="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 autoComplete="email"
                 placeholder={content.emailPlaceholder}
                 className="h-[52px] w-full rounded-2xl border border-[#17372f]/12 bg-white/68 px-4 text-sm text-[#17372f] transition-colors placeholder:text-[#17372f]/35 focus:border-[#0e6b5c]/60 focus:bg-white focus:ring-2 focus:ring-[#0e6b5c]/12 focus:outline-none dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-neutral-500 dark:focus:border-[#8ee2c1]/50 dark:focus:bg-white/[0.08] dark:focus:ring-[#8ee2c1]/10"
@@ -229,9 +313,14 @@ export default function Auth11() {
               >
                 {content.password}
               </label>
+              {mode === 'signIn' && <button type="button" onClick={sendReset} disabled={busy || !configured} className="self-end text-xs font-black text-[#0e6b5c] hover:underline disabled:opacity-50">{content.reset}</button>}
               <input
                 id="password"
                 type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
                 autoComplete={
                   mode === 'signIn' ? 'current-password' : 'new-password'
                 }
@@ -243,12 +332,17 @@ export default function Auth11() {
             <div className="mt-2">
               <button
                 type="submit"
-                className="h-[52px] w-full rounded-2xl bg-[#0e6b5c] px-4 text-sm font-black text-white transition-colors hover:bg-[#17372f] active:bg-[#0a574b] dark:bg-[#eaeaea] dark:text-black dark:hover:bg-white"
+                disabled={busy || !configured}
+                className="h-[52px] w-full rounded-2xl bg-[#0e6b5c] px-4 text-sm font-black text-white transition-colors hover:bg-[#17372f] active:bg-[#0a574b] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#eaeaea] dark:text-black dark:hover:bg-white"
               >
-                {modeCopy.primary}
+                {busy ? (language === 'ar' ? 'جارٍ المتابعة…' : 'Working…') : modeCopy.primary}
               </button>
             </div>
           </form>
+
+          {!configured && <p className="mt-4 rounded-xl border border-amber-700/15 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900" role="status">{content.unavailable}</p>}
+          {error && <p className="mt-4 rounded-xl border border-red-700/15 bg-red-50 px-3 py-2 text-xs font-bold leading-5 text-red-800" role="alert">{error}</p>}
+          {notice && <p className="mt-4 rounded-xl border border-[#0e6b5c]/15 bg-[#e4f2eb] px-3 py-2 text-xs font-bold leading-5 text-[#0e6b5c]" role="status">{notice}</p>}
 
           <div className="mt-6 text-center text-[13px] font-bold text-[#17372f]/52 dark:text-neutral-400">
             {modeCopy.switchPrompt}{' '}
@@ -260,6 +354,7 @@ export default function Auth11() {
               {modeCopy.switchAction}
             </button>
           </div>
+          </>}
         </motion.div>
       </section>
     </main>

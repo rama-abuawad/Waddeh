@@ -11,6 +11,7 @@ export type UiLanguage = "ar" | "en";
 export type InputMode = "standard" | "poetry";
 export type ReadingSource = "text" | "pdf";
 export type ReadingStatus = "pending" | "processing" | "ready" | "error";
+export type ReadingRecovery = "interrupted" | "pdf_file_missing";
 export type ReadingTab = "understand" | "simplify" | "learn";
 export type WordMasteryStatus = "new" | "learning" | "mastered";
 export type SavedItemKind = "word" | "expression";
@@ -61,6 +62,7 @@ export interface ReadingRecord {
   lastOpenedAt: string;
   title: string;
   error?: string;
+  recovery?: ReadingRecovery;
   result?: ReadingResult;
   selectedTab: ReadingTab;
   comprehensionChoice?: number;
@@ -179,7 +181,11 @@ export function normalizeReadings(value: unknown): ReadingRecord[] {
     .filter((item): item is ReadingRecord => Boolean(item && typeof item === "object" && "id" in item))
     .map((record) => ({
       ...record,
-      status: record.status === "processing" ? "pending" : record.status,
+      status: record.status === "processing" ? "error" : record.status,
+      error: record.status === "processing" ? undefined : record.error,
+      recovery: record.status === "processing"
+        ? record.source === "pdf" ? "pdf_file_missing" : "interrupted"
+        : record.recovery,
       selectedTab: record.selectedTab ?? "understand",
       lastOpenedAt: record.lastOpenedAt ?? record.updatedAt ?? record.createdAt,
       title: record.title || deriveReadingTitle(record.mode, record.source, record.sourceText, record.sourceName),

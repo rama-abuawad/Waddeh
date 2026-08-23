@@ -154,7 +154,7 @@
   position: relative;
   display: grid;
   min-height: 100vh;
-  min-height: 100svh;
+  min-height: 100dvh;
   place-items: center;
   overflow: hidden;
   scroll-margin-top: 0;
@@ -184,6 +184,18 @@
 .v6-start-section .v4-reading-preferences { border-color: rgba(217, 244, 236, .13); border-radius: 1.2rem; background: rgba(255, 254, 249, .94); box-shadow: 0 14px 36px rgba(3, 29, 24, .12); }
 .v6-start-section .v4-form-error { border-radius: .75rem; background: rgba(255, 254, 249, .94); padding: .75rem .9rem; }
 
+@media (min-width: 701px) {
+  .v6-start-section { height: 100dvh; min-height: 44rem; padding: clamp(1.4rem, 3dvh, 2.5rem) 1.25rem; }
+  .v6-start-heading { margin-bottom: clamp(.85rem, 2dvh, 1.4rem); }
+  .v6-start-heading h2 { margin-top: clamp(.35rem, 1dvh, .65rem); font-size: clamp(2.55rem, 6.5dvh, 4.25rem); line-height: .98; }
+  .v6-start-heading > p:last-child { margin-top: clamp(.5rem, 1.3dvh, .85rem); font-size: clamp(.86rem, 1.7dvh, 1rem); line-height: 1.5; }
+  .v6-start-card { padding: clamp(.55rem, 1.5dvh, .9rem); }
+  .v6-start-section .v4-composer-field textarea { min-height: clamp(8.5rem, 20dvh, 11rem); max-height: 11rem; padding-block: clamp(.8rem, 1.8dvh, 1.15rem) .65rem; }
+  .v6-start-section .v4-reading-preferences { margin-top: clamp(.5rem, 1.2dvh, .75rem); padding: clamp(.55rem, 1.2dvh, .8rem) .9rem; }
+  .v6-start-section .v4-preference-grid { gap: .8rem; margin-top: clamp(.4rem, 1dvh, .65rem); padding-top: clamp(.4rem, 1dvh, .65rem); }
+  .v6-start-section .v4-level-choices button { padding-block: clamp(.42rem, 1.1dvh, .58rem); }
+}
+
 @media (max-width: 1180px) {
   .v6-landing .hero-reading-card { right: 1.5%; width: 38vw; opacity: .88; }
   .v6-landing[dir="rtl"] .hero-reading-card { right: auto; left: 1.5%; }
@@ -202,7 +214,7 @@
   .v6-landing .learning-map-progress div:last-child { border-bottom: 0; }
   .v6-landing .learning-map-list > div { grid-template-columns: auto 1fr auto; }
   .v6-landing .learning-map-list > div > span:not(.map-check) { display: none; }
-  .v6-start-section { padding: 4.5rem .65rem; }
+  .v6-start-section { min-height: 100dvh; padding: 4.5rem .65rem; }
   .v6-start-card { border-radius: 1.45rem; padding: .45rem; }
   .v6-start-heading { margin-bottom: 1.75rem; padding-inline: .5rem; }
   .v6-start-heading h2 { font-size: clamp(2.35rem, 13vw, 3.25rem); }

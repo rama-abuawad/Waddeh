@@ -28,12 +28,14 @@ export default function LearningHeader() {
   return (
     <header className="v4-learning-header">
       <div><p className="v4-kicker">{copy.title}</p><h1>{pathname === "/learning" ? copy.title : activeItem.label}</h1>{description && <p className="v4-learning-description">{description}</p>}</div>
-      <nav aria-label={uiLanguage === "ar" ? "أقسام تعلّمي" : "My Learning sections"}>
-        {items.map((item) => {
-          const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          return <Link key={item.href} href={item.href} className={active ? "active" : ""}>{item.label}</Link>;
-        })}
-      </nav>
+      <div className="v4-learning-nav-wrap">
+        <nav aria-label={uiLanguage === "ar" ? "أقسام تعلّمي" : "My Learning sections"}>
+          {items.map((item) => {
+            const active = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            return <Link key={item.href} href={item.href} className={active ? "active" : ""}>{item.label}</Link>;
+          })}
+        </nav>
+      </div>
     </header>
   );
 }

@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useLayoutEffect,
   type ReactNode,
 } from "react";
 
@@ -55,6 +56,7 @@ interface WaddehContextValue {
   createReading: (input: NewReadingInput) => string;
   processReading: (id: string) => Promise<void>;
   retryReading: (id: string) => void;
+  reattachPdf: (id: string, file: File) => void;
   reopenReading: (id: string) => void;
   deleteReading: (id: string) => void;
   setReadingTab: (id: string, tab: ReadingTab) => void;
@@ -103,21 +105,21 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
   const pendingFiles = useRef(new Map<string, File>());
   const processing = useRef(new Set<string>());
 
-  useEffect(() => {
-    try {
-      const storedLanguage = window.localStorage.getItem(STORAGE_KEYS.language);
-      const rawWords = window.localStorage.getItem(STORAGE_KEYS.vocabulary);
-      const rawProfile = window.localStorage.getItem(STORAGE_KEYS.profile);
-      const rawReadings = window.localStorage.getItem(STORAGE_KEYS.readings);
-      if (storedLanguage === "ar" || storedLanguage === "en") setUiLanguageState(storedLanguage);
-      if (rawWords) setSavedWords(normalizeSavedWords(JSON.parse(rawWords)));
-      if (rawProfile) setProfile(normalizeProfile(JSON.parse(rawProfile)));
-      if (rawReadings) setReadings(normalizeReadings(JSON.parse(rawReadings)));
-    } catch {
-      // Corrupt optional local state must not prevent Waddeh from opening.
-    } finally {
-      setHydrated(true);
-    }
+  useLayoutEffect(() => {
+    const storedLanguage = window.localStorage.getItem(STORAGE_KEYS.language);
+    if (storedLanguage === "ar" || storedLanguage === "en") setUiLanguageState(storedLanguage);
+    const restore = <T,>(key: string, normalize: (value: never) => T, apply: (value: T) => void) => {
+      try {
+        const raw = window.localStorage.getItem(key);
+        if (raw) apply(normalize(JSON.parse(raw) as never));
+      } catch {
+        // One corrupt optional record must not prevent other local state from opening.
+      }
+    };
+    restore(STORAGE_KEYS.vocabulary, normalizeSavedWords, setSavedWords);
+    restore(STORAGE_KEYS.profile, normalizeProfile, setProfile);
+    restore(STORAGE_KEYS.readings, normalizeReadings, setReadings);
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -177,7 +179,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     if (!record || record.status === "ready" || processing.current.has(id)) return;
     processing.current.add(id);
     const now = new Date().toISOString();
-    updateReading(id, (item) => ({ ...item, status: "processing", error: undefined, updatedAt: now }));
+    updateReading(id, (item) => ({ ...item, status: "processing", error: undefined, recovery: undefined, updatedAt: now }));
 
     try {
       const memory = buildReadingMemorySnapshot(savedWordsRef.current, profileRef.current);
@@ -186,7 +188,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
         : record.source === "pdf"
           ? (() => {
               const file = pendingFiles.current.get(id);
-              if (!file) throw new Error("The PDF needs to be attached again before it can be processed.");
+              if (!file) throw new Error("PDF_FILE_MISSING");
               return simplifyPdf(file, record.reader, record.level, memory).then((data) => ({ kind: "standard" as const, data }));
             })()
           : simplifyText({
@@ -200,6 +202,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
       updateReading(id, (item) => ({
         ...item,
         status: "ready",
+        recovery: undefined,
         result: resolved,
         sourceName: resolved.kind === "standard" ? resolved.data.source_name ?? item.sourceName : item.sourceName,
         title: deriveReadingTitle(item.mode, item.source, item.sourceText, resolved.kind === "standard" ? resolved.data.source_name ?? item.sourceName : item.sourceName),
@@ -209,17 +212,18 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
       setProfile((current) => ({
         ...current,
         readings: current.readings + 1,
-        preferredLevel: record.level,
         highestBridgeLevel: resolved.kind === "standard"
           ? Math.max(current.highestBridgeLevel, resolved.data.bridge.current_level)
           : current.highestBridgeLevel,
       }));
       pendingFiles.current.delete(id);
     } catch (error) {
+      const pdfMissing = error instanceof Error && error.message === "PDF_FILE_MISSING";
       updateReading(id, (item) => ({
         ...item,
         status: "error",
-        error: error instanceof Error ? error.message : "The reading could not be prepared.",
+        error: pdfMissing ? undefined : error instanceof Error ? error.message : "The reading could not be prepared.",
+        recovery: pdfMissing ? "pdf_file_missing" : undefined,
         updatedAt: new Date().toISOString(),
       }));
     } finally {
@@ -228,7 +232,24 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
   }, [updateReading]);
 
   const retryReading = useCallback((id: string) => {
-    updateReading(id, (record) => ({ ...record, status: "pending", error: undefined, updatedAt: new Date().toISOString() }));
+    updateReading(id, (record) => record.source === "pdf" && !pendingFiles.current.has(id)
+      ? { ...record, status: "error", error: undefined, recovery: "pdf_file_missing", updatedAt: new Date().toISOString() }
+      : { ...record, status: "pending", error: undefined, recovery: undefined, updatedAt: new Date().toISOString() });
+  }, [updateReading]);
+
+  const reattachPdf = useCallback((id: string, file: File) => {
+    const record = readingsRef.current.find((item) => item.id === id);
+    if (!record || record.source !== "pdf") return;
+    pendingFiles.current.set(id, file);
+    updateReading(id, (item) => ({
+      ...item,
+      sourceName: file.name,
+      title: file.name,
+      status: "pending",
+      error: undefined,
+      recovery: undefined,
+      updatedAt: new Date().toISOString(),
+    }));
   }, [updateReading]);
 
   const reopenReading = useCallback((id: string) => {
@@ -386,6 +407,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     createReading,
     processReading,
     retryReading,
+    reattachPdf,
     reopenReading,
     deleteReading,
     setReadingTab,
@@ -399,7 +421,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     completePlacement,
   }), [
     hydrated, uiLanguage, setUiLanguage, savedWords, profile, readings, createReading,
-    processReading, retryReading, reopenReading, deleteReading, setReadingTab, saveWord,
+    processReading, retryReading, reattachPdf, reopenReading, deleteReading, setReadingTab, saveWord,
     removeWord, recordVocabularyQuiz, recordTransferResult, recordComprehension,
     recordMeaningThread, setPreferredLevel, completePlacement,
   ]);

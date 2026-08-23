@@ -45,9 +45,9 @@ export default function LearningMapPage() {
       </section>
 
       <section className="v4-map-metrics" aria-label={isArabic ? "ملخص التعلّم" : "Learning summary"}>
-        <article><span><BookOpenText /></span><div><b>{completedReadings.length}</b><p>{isArabic ? "قراءة مفهومة" : "readings understood"}</p></div></article>
+        <article><span><BookOpenText /></span><div><b>{completedReadings.length}</b><p>{isArabic ? "قراءة مكتملة" : "completed readings"}</p></div></article>
         <article><span><BarChart3 /></span><div><b>{savedWords.length}</b><p>{isArabic ? `كلمة محفوظة · ${learningWords} قيد التعلّم` : `saved words · ${learningWords} in progress`}</p></div></article>
-        <article><span><CheckCircle2 /></span><div><b>{understandingRate === null ? "—" : `${understandingRate}%`}</b><p>{totalChecks === 0 ? (isArabic ? "بانتظار أول اختبار فهم" : "waiting for a first comprehension check") : (isArabic ? "فهمك في الاختبارات" : "understanding across checks")}</p></div></article>
+        <article><span><CheckCircle2 /></span><div><b>{understandingRate === null ? "—" : `${profile.understoodChecks} / ${totalChecks}`}</b><p>{totalChecks === 0 ? (isArabic ? "بانتظار أول اختبار فهم" : "waiting for a first comprehension check") : (isArabic ? `${understandingRate}% صحيحة في اختبارات الفهم` : `${understandingRate}% correct across comprehension checks`)}</p></div></article>
       </section>
 
       <section className="v4-map-route" aria-labelledby="map-route-title">

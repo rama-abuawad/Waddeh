@@ -2,7 +2,7 @@ import type { UiLanguage } from "@/lib/waddeh-store";
 
 export const v4Copy = {
   ar: {
-    shell: { home: "الرئيسية", learning: "تعلّمي", profile: "الملف", signIn: "تسجيل الدخول", start: "ابدأ الآن", language: "English" },
+    shell: { home: "الرئيسية", learning: "تعلّمي", profile: "الملف", signIn: "تسجيل الدخول", start: "ابدأ الفهم", language: "English" },
     home: {
       eyebrow: "العربية أقرب مما تبدو",
       title: "كل نص تفهمه،",
@@ -84,7 +84,7 @@ export const v4Copy = {
       allReadings: "كل القراءات",
       emptyReadings: "لا توجد قراءات محفوظة بعد.",
       emptyWords: "لم تحفظ أي كلمة بعد.",
-      start: "ابدأ بقراءة عربية",
+      start: "ابدأ الفهم",
       words: "كلمات",
       expressions: "تعبيرات",
       search: "ابحث بالعربية أو المعنى…",
@@ -108,7 +108,7 @@ export const v4Copy = {
     },
   },
   en: {
-    shell: { home: "Home", learning: "My Learning", profile: "Profile", signIn: "Sign in", start: "Start now", language: "العربية" },
+    shell: { home: "Home", learning: "My Learning", profile: "Profile", signIn: "Sign in", start: "Start understanding", language: "العربية" },
     home: {
       eyebrow: "Arabic is closer than it seems",
       title: "Every text you understand",
@@ -190,7 +190,7 @@ export const v4Copy = {
       allReadings: "All readings",
       emptyReadings: "You have no saved readings yet.",
       emptyWords: "You have not saved any words yet.",
-      start: "Start an Arabic reading",
+      start: "Start understanding",
       words: "Words",
       expressions: "Expressions",
       search: "Search Arabic or meaning…",

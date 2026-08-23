@@ -27,7 +27,7 @@ interface LandingExperimentProps {
 
 const landingCopy = {
   en: {
-    nav: { how: "How it works", features: "Features", about: "About", signIn: "Sign in", language: "العربية" },
+    nav: { how: "How it works", features: "Features", about: "About", learning: "My Learning", signIn: "Sign in", language: "العربية" },
     hero: {
       eyebrow: "Adaptive Arabic reading",
       title: "Every text you understand",
@@ -61,8 +61,8 @@ const landingCopy = {
     },
     reading: {
       kicker: "Inside a reading",
-      title: "Stay with the Arabic.",
-      accent: "Bring the support beside it.",
+      title: "Stay with the Arabic,",
+      accent: "with support beside you.",
       description: "Waddeh keeps the source text at the center, then layers in a natural meaning, clearer Arabic, vocabulary, and listening only when you need them.",
       listen: "Listen",
       save: "Save",
@@ -98,13 +98,13 @@ const landingCopy = {
         { tag: "Explore", title: "Come closer to the poem", description: "Explore verses, imagery, and natural meaning without flattening the language or turning poetry into a plain translation." },
         { tag: "Learn", title: "Learn from every text", description: "Save vocabulary, review it in a new context, and follow a learning path built from what you actually read." },
       ],
-      prompt: "Bring the Arabic you already want to understand.",
+      prompt: "Bring the Arabic text you already want to understand.",
       promptDetail: "Paste a passage, open a poem, or attach a PDF.",
-      cta: "Start a reading",
+      cta: "Start understanding",
     },
   },
   ar: {
-    nav: { how: "كيف يعمل", features: "المزايا", about: "عن وضّح", signIn: "تسجيل الدخول", language: "English" },
+    nav: { how: "كيف يعمل", features: "المزايا", about: "عن وضّح", learning: "تعلّمي", signIn: "تسجيل الدخول", language: "English" },
     hero: {
       eyebrow: "قراءة عربية متكيّفة",
       title: "كل نص تفهمه،",
@@ -175,9 +175,9 @@ const landingCopy = {
         { tag: "استكشف", title: "اقترب من القصيدة", description: "استكشف الأبيات والصور والمعنى الطبيعي من دون تسطيح اللغة أو تحويل الشعر إلى ترجمة جامدة." },
         { tag: "تعلّم", title: "تعلّم من كل نص", description: "احفظ المفردات، وراجعها في سياق جديد، واتبع مساراً تعليمياً مبنياً على ما تقرؤه فعلاً." },
       ],
-      prompt: "أحضر العربية التي تريد فهمها بالفعل.",
+      prompt: "أحضر النص العربي الذي تريد فهمه.",
       promptDetail: "الصق مقطعاً، أو افتح قصيدة، أو أرفق ملف PDF.",
-      cta: "ابدأ قراءة",
+      cta: "ابدأ الفهم",
     },
   },
 } as const;
@@ -226,8 +226,11 @@ function LandingNavbar({ uiLanguage, onLanguageChange }: LandingExperimentProps)
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          <button type="button" onClick={() => onLanguageChange(nextLanguage)} className="rounded-full px-3 py-2 text-xs font-semibold text-white/72 transition-colors hover:text-white sm:px-4" aria-label={uiLanguage === "ar" ? "Switch to English" : "التبديل إلى العربية"}>{copy.language}</button>
-          <Link href="/auth" className="liquid-glass rounded-full px-4 py-2.5 text-xs font-semibold text-white sm:px-5">{copy.signIn}</Link>
+          <Link href="/learning" className="inline-flex min-h-11 items-center gap-2 rounded-full px-2.5 text-xs font-semibold text-white/72 transition-colors hover:text-white sm:px-3" aria-label={copy.learning}>
+            <BookOpenText size={15} aria-hidden="true" /><span className="hidden lg:inline">{copy.learning}</span>
+          </Link>
+          <button type="button" onClick={() => onLanguageChange(nextLanguage)} className="min-h-11 rounded-full px-3 py-2 text-xs font-semibold text-white/72 transition-colors hover:text-white sm:px-4" aria-label={uiLanguage === "ar" ? "Switch to English" : "التبديل إلى العربية"}>{copy.language}</button>
+          <Link href="/auth" className="liquid-glass inline-flex min-h-11 items-center rounded-full px-4 py-2.5 text-xs font-semibold text-white sm:px-5">{copy.signIn}</Link>
         </div>
       </div>
     </nav>

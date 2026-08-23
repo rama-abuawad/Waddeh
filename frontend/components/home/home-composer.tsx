@@ -26,6 +26,7 @@ export default function HomeComposer() {
   const [dragging, setDragging] = useState(false);
 
   const level = levelOverride ?? profile.preferredLevel;
+  const selectedLevel = learnerLevels.find((item) => item.value === level);
 
   useEffect(() => {
     const element = textArea.current;
@@ -123,12 +124,12 @@ export default function HomeComposer() {
 
         <section className="v4-reading-preferences" aria-labelledby="reading-preferences-title">
           <div className="v4-preferences-heading">
-            <strong id="reading-preferences-title">{copy.preferences}</strong>
-            <span>{learnerLevels.find((item) => item.value === level)?.[uiLanguage] ?? level}</span>
+            <div><strong id="reading-preferences-title">{uiLanguage === "ar" ? "خيارات هذه القراءة" : "Choices for this reading"}</strong><small>{uiLanguage === "ar" ? "تؤثر في الشرح والتبسيط هنا فقط، ولا تغيّر مستواك الافتراضي." : "These shape this reading only and do not change your default level."}</small></div>
+            <span>{selectedLevel?.[uiLanguage] ?? level}</span>
           </div>
           <div className="v4-preference-grid">
-            <label><span>{uiLanguage === "ar" ? "لمن نوضّح؟" : "Who is reading?"}</span><select value={reader} onChange={(event) => setReader(event.target.value as ReaderType)}><option value="general_reader">{uiLanguage === "ar" ? "قارئ عام" : "General reader"}</option><option value="non_arabic_speaker">{uiLanguage === "ar" ? "غير ناطق بالعربية" : "Non-Arabic speaker"}</option><option value="child">{uiLanguage === "ar" ? "طفل" : "Child"}</option></select></label>
-            <div><span>{uiLanguage === "ar" ? "درجة التبسيط" : "Adaptation level"}</span><div className="v4-level-choices">{learnerLevels.map((item) => <button key={item.value} type="button" aria-pressed={level === item.value} className={level === item.value ? "active" : ""} onClick={() => setLevelOverride(item.value)}>{item.value}</button>)}</div></div>
+            <label><span>{uiLanguage === "ar" ? "لمن نوضّح؟" : "Who is reading?"}</span><small className="v4-preference-help">{uiLanguage === "ar" ? "نكيّف أسلوب الشرح والتبسيط ليناسب القارئ." : "Waddeh adapts its explanation and simplification style to the reader."}</small><select value={reader} onChange={(event) => setReader(event.target.value as ReaderType)}><option value="general_reader">{uiLanguage === "ar" ? "قارئ عام" : "General reader"}</option><option value="non_arabic_speaker">{uiLanguage === "ar" ? "غير ناطق بالعربية" : "Non-Arabic speaker"}</option><option value="child">{uiLanguage === "ar" ? "طفل" : "Child"}</option></select></label>
+            <div><span>{uiLanguage === "ar" ? "درجة التبسيط لهذه القراءة" : "Adaptation for this reading"}</span><div className="v4-level-choices">{learnerLevels.map((item) => <button key={item.value} type="button" title={`${item.value} — ${item[uiLanguage]}`} aria-label={`${item.value} — ${item[uiLanguage]}`} aria-pressed={level === item.value} className={level === item.value ? "active" : ""} onClick={() => setLevelOverride(item.value)}>{item.value}</button>)}</div><small className="v4-selected-level">{level} — {selectedLevel?.[uiLanguage]} · {uiLanguage === "ar" ? selectedLevel?.hintAr : selectedLevel?.hintEn}</small></div>
           </div>
         </section>
 

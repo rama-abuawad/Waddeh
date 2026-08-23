@@ -53,6 +53,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           <nav className="v4-desktop-nav" aria-label={uiLanguage === "ar" ? "التنقل الرئيسي" : "Primary navigation"}>
             <Link href="/" className={isActive(pathname, "/") ? "active" : ""}>{copy.home}</Link>
             <Link href="/learning" className={isActive(pathname, "/learning") ? "active" : ""}>{copy.learning}</Link>
+            <Link href="/profile" className={isActive(pathname, "/profile") ? "active" : ""}>{copy.profile}</Link>
           </nav>
           <div className="v4-topbar-actions">
             <button type="button" className="v4-language-button" onClick={() => setUiLanguage(uiLanguage === "ar" ? "en" : "ar")}>{copy.language}</button>

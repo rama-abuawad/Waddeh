@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronDown, Copy, FileText, Menu } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ArrowLeft, ArrowRight, Bookmark, Check, ChevronDown, Copy, FilePlus2, FileText, Menu, Plus } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import InteractiveArabic from "@/components/interactive-arabic";
 import ExplorePanel, { type ExploreTool } from "@/components/reading/explore-panel";
 import SpeechPlayer from "@/components/reading/speech-player";
 import WordLensSheet, { type WordLensState } from "@/components/reading/word-lens-sheet";
 import { useWaddeh } from "@/components/waddeh-provider";
+import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { explainWord, type CulturalMeaningItem, type WordExplanation } from "@/lib/api";
 import { copyFor } from "@/lib/v4-copy";
 import { readingArabic, wordCount, type ReadingTab } from "@/lib/waddeh-store";
@@ -61,6 +62,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
     savedWords,
     processReading,
     retryReading,
+    reattachPdf,
     reopenReading,
     setReadingTab,
     saveWord,
@@ -73,6 +75,10 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
   const [showChanges, setShowChanges] = useState(false);
   const [wordLens, setWordLens] = useState<WordLensState | null>(null);
   const [copied, setCopied] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
+  const recoveryFileInput = useRef<HTMLInputElement>(null);
+  const closeMobileExplore = useCallback(() => setMobileExplore(false), []);
+  const mobileExploreRef = useModalDialog<HTMLDivElement>(mobileExplore, closeMobileExplore);
 
   useEffect(() => {
     if (!hydrated || !reading) return;
@@ -86,6 +92,22 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
   }, [reading?.id, reading?.status]);
 
   const closeWordLens = useCallback(() => setWordLens(null), []);
+
+  function handleRecoveryFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!reading || !file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setAttachmentError(uiLanguage === "ar" ? "اختر ملف PDF صالحاً." : "Choose a valid PDF file.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setAttachmentError(uiLanguage === "ar" ? "يجب ألا يتجاوز حجم ملف PDF عشرة ميغابايت." : "The PDF must be 10 MB or smaller.");
+      return;
+    }
+    setAttachmentError("");
+    reattachPdf(reading.id, file);
+  }
 
   async function inspectWord(word: string) {
     if (!reading?.result) return;
@@ -132,11 +154,30 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
   }
 
   if (!reading) {
-    return <div className="v4-state-page"><FileText /><h1>{uiLanguage === "ar" ? "لم نجد هذه القراءة" : "This reading was not found"}</h1><p>{uiLanguage === "ar" ? "ربما أزيلت من هذا الجهاز." : "It may have been removed from this device."}</p><Link href="/">{copy.newReading}</Link></div>;
+    return <div className="v4-state-page"><FileText /><h1>{uiLanguage === "ar" ? "لم نجد هذه القراءة" : "This reading was not found"}</h1><p>{uiLanguage === "ar" ? "ربما أزيلت من هذا الجهاز." : "It may have been removed from this device."}</p><Link href="/#start">{copy.newReading}</Link></div>;
   }
 
   if (reading.status === "error") {
-    return <div className="v4-state-page"><FileText /><h1>{uiLanguage === "ar" ? "تعذر تجهيز القراءة" : "The reading could not be prepared"}</h1><p>{reading.error}</p><div><button type="button" onClick={() => retryReading(reading.id)}>{copy.retry}</button><Link href="/">{copy.newReading}</Link></div></div>;
+    const needsPdf = reading.recovery === "pdf_file_missing";
+    const interrupted = reading.recovery === "interrupted";
+    return <div className="v4-state-page">
+      {needsPdf ? <FilePlus2 /> : <FileText />}
+      <h1>{needsPdf
+        ? uiLanguage === "ar" ? "أرفق ملف PDF مرة أخرى" : "Attach the PDF again"
+        : interrupted
+          ? uiLanguage === "ar" ? "توقفت هذه القراءة" : "This reading was interrupted"
+          : uiLanguage === "ar" ? "تعذر تجهيز القراءة" : "The reading could not be prepared"}</h1>
+      <p>{needsPdf
+        ? uiLanguage === "ar" ? "لا نخزّن الملف على جهازك بعد إغلاق الصفحة. اختر الملف الأصلي مرة أخرى لنكمل القراءة نفسها." : "Waddeh does not store the file after the page closes. Select the original PDF again to continue this reading."
+        : interrupted
+          ? uiLanguage === "ar" ? "أُغلقت الصفحة قبل اكتمال التجهيز. يمكنك إعادة المحاولة بأمان." : "The page closed before preparation finished. You can safely try again."
+          : reading.error}</p>
+      {attachmentError && <p className="v4-form-error" role="alert">{attachmentError}</p>}
+      <div>
+        {needsPdf ? <><input ref={recoveryFileInput} type="file" accept="application/pdf,.pdf" hidden onChange={handleRecoveryFile} /><button type="button" onClick={() => recoveryFileInput.current?.click()}>{uiLanguage === "ar" ? "اختر ملف PDF" : "Choose PDF"}</button></> : <button type="button" onClick={() => retryReading(reading.id)}>{copy.retry}</button>}
+        <Link href="/#start">{copy.newReading}</Link>
+      </div>
+    </div>;
   }
 
   return (
@@ -144,7 +185,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
       <header className="v4-reading-header">
         <button type="button" aria-label={copy.back} onClick={() => router.back()}><ArrowLeft className={uiLanguage === "ar" ? "rtl-arrow" : ""} /><span>{copy.back}</span></button>
         <div><span>{sourceLabel}</span><strong dir="rtl">{reading.title}</strong></div>
-        <Link href="/" aria-label={copy.newReading}><span>{copy.newReading}</span><ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /></Link>
+        <Link href="/#start" aria-label={copy.newReading}><span>{copy.newReading}</span><Plus aria-hidden="true" /></Link>
       </header>
 
       <div className="v4-reading-layout">
@@ -201,7 +242,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
       </div>
 
       <button type="button" className="v4-mobile-explore-trigger" onClick={() => setMobileExplore(true)}><Menu />{copy.explore}</button>
-      {mobileExplore && <div className="v4-overlay v4-explore-overlay" role="presentation" onMouseDown={() => setMobileExplore(false)}><div className="v4-sheet v4-explore-sheet" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="v4-sheet-handle" /><ExplorePanel reading={reading} active={activeTool} onActive={setActiveTool} onClose={() => setMobileExplore(false)} mobile /></div></div>}
+      {mobileExplore && <div className="v4-overlay v4-explore-overlay" role="presentation" onMouseDown={closeMobileExplore}><div ref={mobileExploreRef} className="v4-sheet v4-explore-sheet" role="dialog" aria-modal="true" aria-label={copy.exploreTitle} tabIndex={-1} onMouseDown={(event) => event.stopPropagation()}><div className="v4-sheet-handle" /><ExplorePanel reading={reading} active={activeTool} onActive={setActiveTool} onClose={closeMobileExplore} mobile /></div></div>}
 
       {wordLens && <WordLensSheet state={wordLens} uiLanguage={uiLanguage} saved={Boolean(wordLens.data && savedWords.some((word) => word.word === wordLens.data?.word && word.meaning === wordLens.data?.meaning))} onSave={(word) => saveWord(word, { sourceReadingId: reading.id, sourceTitle: reading.title })} onClose={closeWordLens} />}
     </div>

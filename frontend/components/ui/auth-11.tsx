@@ -5,9 +5,9 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { motion } from 'motion/react';
 
-type AuthMode = 'signIn' | 'create';
-type AuthLanguage = 'ar' | 'en';
+import { useWaddeh } from '@/components/waddeh-provider';
 
+type AuthMode = 'signIn' | 'create';
 const brandIcon = '/brand/Waddeh_Brand/waddeh-icon.svg';
 
 const copy = {
@@ -98,7 +98,7 @@ const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 export default function Auth11() {
   const [mode, setMode] = useState<AuthMode>('signIn');
-  const [language, setLanguage] = useState<AuthLanguage>('ar');
+  const { uiLanguage: language, setUiLanguage: setLanguage } = useWaddeh();
 
   const content = copy[language];
   const modeCopy = content.modes[mode];

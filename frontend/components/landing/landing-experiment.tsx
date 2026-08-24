@@ -261,7 +261,7 @@ function HeroSection(props: LandingExperimentProps) {
       <HeroReadingCard uiLanguage={uiLanguage} />
       <LandingNavbar {...props} />
       <div className="hero-content relative z-20 flex flex-1 items-center px-6 pb-14 pt-8 sm:px-8 md:pb-20 lg:px-10">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,.92fr)]">
+        <div className="hero-grid mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,.92fr)]">
           <div className="hero-copy max-w-[42rem]">
             <p className="hero-eyebrow mb-5 text-[0.72rem] font-semibold uppercase tracking-[0.3em] text-[#9DE5D2]/78">{copy.eyebrow}</p>
             <h1 className="hero-heading text-[3.7rem] font-medium leading-[0.94] tracking-[-0.06em] text-white sm:text-[4.8rem] md:text-[5.45rem] lg:text-[5.25rem] xl:text-[5.75rem]">

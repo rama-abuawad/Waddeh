@@ -61,7 +61,7 @@
   .v6-landing .hero-navbar { padding-block: clamp(.75rem, 2dvh, 1.35rem); }
   .v6-landing .hero-content { padding-top: clamp(.35rem, 1.2dvh, .75rem); padding-bottom: clamp(.45rem, 1.4dvh, .9rem); }
   .v6-landing .hero-eyebrow { margin-bottom: clamp(.65rem, 1.7dvh, 1.15rem); }
-  .v6-landing .hero-heading { font-size: clamp(3.75rem, 9.1dvh, 5.75rem); }
+  .v6-landing .hero-heading { font-size: clamp(3.65rem, 8.2dvh, 5.25rem); }
   .v6-landing .hero-description { margin-top: clamp(.9rem, 2.4dvh, 1.65rem); font-size: clamp(.92rem, 1.9dvh, 1.08rem); line-height: 1.62; }
   .v6-landing .hero-actions { margin-top: clamp(1rem, 2.8dvh, 2rem); }
   .v6-landing .hero-chips { margin-top: clamp(.75rem, 2.1dvh, 1.45rem); }
@@ -72,6 +72,15 @@
   .v6-landing .hero-paper-meaning { margin-top: clamp(.8rem, 2.1dvh, 1.6rem); }
   .v6-landing .hero-paper-word { margin-top: clamp(.75rem, 2dvh, 1.5rem); }
   .v6-landing .hero-explore { margin-bottom: clamp(.55rem, 1.7dvh, 1.35rem); }
+}
+
+@media (min-width: 1024px) and (max-width: 1100px) {
+  .v6-landing .hero-grid { grid-template-columns: minmax(0, 1fr); }
+  .v6-landing .hero-copy { max-width: 42rem; }
+  .v6-landing .hero-card-space { display: none; }
+  .v6-landing .hero-heading { max-width: 40rem; font-size: clamp(3.5rem, 8dvh, 4.15rem); }
+  .v6-landing .hero-reading-card { right: -13rem; width: 33rem; opacity: .24; transform: rotate(6deg); }
+  .v6-landing[dir="rtl"] .hero-reading-card { right: auto; left: -13rem; transform: rotate(-6deg); }
 }
 .v6-landing .waddeh-hero::after {
   position: absolute;

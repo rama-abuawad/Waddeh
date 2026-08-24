@@ -1,7 +1,7 @@
 fastapi==0.115.12
+httpx==0.28.1
 pydantic-settings==2.8.1
 uvicorn[standard]==0.34.0
 
-# Development
-httpx==0.28.1
+# Development and test
 pytest==8.3.5

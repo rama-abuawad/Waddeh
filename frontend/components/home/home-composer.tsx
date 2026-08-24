@@ -43,7 +43,7 @@ export default function HomeComposer() {
       setError(copy.pdfOnly);
       return;
     }
-    if (nextFile.size > 10 * 1024 * 1024) {
+    if (nextFile.size > 4 * 1024 * 1024) {
       setError(copy.pdfLarge);
       return;
     }

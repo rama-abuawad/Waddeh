@@ -89,3 +89,12 @@ Guest mode uses browser storage for:
 - Comprehension feedback and explicitly opened Meaning Thread categories.
 
 Signed-in learners use Firebase Authentication and UID-scoped Firestore documents with an account-specific local cache. Guest-to-account migration conservatively merges readings, vocabulary, profile state, and learning evidence while retaining the original guest copy. Firestore access is isolated in `frontend/lib/waddeh-repository.ts`, and `firestore.rules` permits users to access only their own document tree.
+
+## Vercel Runtime
+
+`vercel.json` deploys the Next.js frontend and FastAPI backend as two services in
+one project. Requests under `/api/*` keep their path and reach FastAPI; all other
+paths reach Next.js on the same domain. The backend does not require durable local
+files, a continuously running process, or in-memory state that must survive a
+request. Its in-memory rate limiter is defense in depth only; the deployment-wide
+limit belongs in Vercel WAF.

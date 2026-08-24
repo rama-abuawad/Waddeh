@@ -242,8 +242,9 @@ export interface SimplificationResult {
   source_name: string | null;
 }
 
+const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
 const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"
+  configuredApiBaseUrl ?? (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "")
 ).replace(/\/$/, "");
 
 async function requestJson<T>(
@@ -262,11 +263,18 @@ async function requestJson<T>(
 
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as
-        | { detail?: string | Array<{ msg?: string }> }
+        | {
+            detail?:
+              | string
+              | Array<{ msg?: string }>
+              | { code?: string; message?: string };
+          }
         | null;
       const detail = Array.isArray(body?.detail)
         ? body.detail[0]?.msg
-        : body?.detail;
+        : typeof body?.detail === "object"
+          ? body.detail?.message
+          : body?.detail;
       throw new Error(detail || "تعذر إكمال الطلب. حاول مرة أخرى.");
     }
 

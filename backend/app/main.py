@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.config import get_settings
+from app.rate_limit import enforce_rate_limit
 from app.schemas import (
     PoetryOutput,
     PoetryRequest,
@@ -41,14 +42,25 @@ app = FastAPI(
     title=settings.app_name,
     description="Arabic-first reading companion API.",
     version="0.1.0",
+    debug=False,
 )
+
+allowed_origins = {
+    origin.strip().rstrip("/")
+    for origin in (
+        settings.frontend_origin,
+        settings.frontend_url,
+        *settings.frontend_origins.split(","),
+    )
+    if origin.strip()
+}
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_origin],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=sorted(allowed_origins),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-File-Name", "X-Reading-Memory"],
 )
 
 
@@ -57,12 +69,25 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "service": "waddeh-api"}
 
 
-@app.post("/api/readability", response_model=ReadabilityAssessment, tags=["reading"])
+@app.post(
+    "/api/readability",
+    response_model=ReadabilityAssessment,
+    tags=["reading"],
+    dependencies=[Depends(enforce_rate_limit("readability", 60, 60))],
+)
 async def readability(request: ReadabilityRequest) -> ReadabilityAssessment:
     return assess_readability(request.text)
 
 
-@app.post("/api/simplify", response_model=SimplifyResponse, tags=["reading"])
+@app.post(
+    "/api/simplify",
+    response_model=SimplifyResponse,
+    tags=["reading"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:simplify", 8, 300)),
+    ],
+)
 async def simplify(
     request: SimplifyRequest,
     service: GeminiService = Depends(get_gemini_service),
@@ -73,12 +98,12 @@ async def simplify(
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="تعذر إكمال الطلب الآن. حاول مرة أخرى لاحقاً.",
         ) from exc
 
     deterministic_integrity = build_deterministic_integrity_report(
@@ -111,7 +136,15 @@ async def simplify(
     )
 
 
-@app.post("/api/upload/pdf", response_model=SimplifyResponse, tags=["reading"])
+@app.post(
+    "/api/upload/pdf",
+    response_model=SimplifyResponse,
+    tags=["reading"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:pdf", 3, 600)),
+    ],
+)
 async def simplify_pdf(
     request: Request,
     reader: ReaderType = Query(default=ReaderType.general_reader),
@@ -127,11 +160,21 @@ async def simplify_pdf(
             detail="يُسمح بملفات PDF فقط.",
         )
 
-    pdf_bytes = await request.body()
-    if not pdf_bytes or len(pdf_bytes) > 10 * 1024 * 1024:
+    chunks: list[bytes] = []
+    total_size = 0
+    async for chunk in request.stream():
+        total_size += len(chunk)
+        if total_size > 4 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="يجب ألا يتجاوز حجم ملف PDF أربعة ميغابايت.",
+            )
+        chunks.append(chunk)
+    pdf_bytes = b"".join(chunks)
+    if not pdf_bytes:
         raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="يجب ألا يتجاوز حجم ملف PDF عشرة ميغابايت.",
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="ملف PDF فارغ.",
         )
     if b"%PDF-" not in pdf_bytes[:1024]:
         raise HTTPException(
@@ -167,12 +210,12 @@ async def simplify_pdf(
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="تعذر إكمال الطلب الآن. حاول مرة أخرى لاحقاً.",
         ) from exc
 
     readability_result = assess_readability(result.simplified_text)
@@ -192,7 +235,15 @@ async def simplify_pdf(
     )
 
 
-@app.post("/api/explain-word", response_model=WordExplanation, tags=["learning"])
+@app.post(
+    "/api/explain-word",
+    response_model=WordExplanation,
+    tags=["learning"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:word", 15, 300)),
+    ],
+)
 async def explain_word(
     request: WordExplanationRequest,
     service: GeminiService = Depends(get_gemini_service),
@@ -202,12 +253,12 @@ async def explain_word(
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="تعذر شرح الكلمة الآن. حاول مرة أخرى لاحقاً.",
         ) from exc
 
 
@@ -215,6 +266,10 @@ async def explain_word(
     "/api/learning/transfer-challenge",
     response_model=TransferChallengeOutput,
     tags=["learning"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:transfer", 8, 600)),
+    ],
 )
 async def create_transfer_challenge(
     request: TransferChallengeRequest,
@@ -225,16 +280,23 @@ async def create_transfer_challenge(
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="تعذر إنشاء التحدي الآن. حاول مرة أخرى لاحقاً.",
         ) from exc
 
 
-@app.post("/api/speech", tags=["reading"])
+@app.post(
+    "/api/speech",
+    tags=["reading"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:speech", 10, 300)),
+    ],
+)
 async def generate_speech(
     request: SpeechRequest,
     service: GeminiService = Depends(get_gemini_service),
@@ -269,7 +331,15 @@ async def generate_speech(
         ) from exc
 
 
-@app.post("/api/poetry/explain", response_model=PoetryResponse, tags=["reading", "learning"])
+@app.post(
+    "/api/poetry/explain",
+    response_model=PoetryResponse,
+    tags=["reading", "learning"],
+    dependencies=[
+        Depends(enforce_rate_limit("ai:all", 20, 600)),
+        Depends(enforce_rate_limit("ai:poetry", 6, 600)),
+    ],
+)
 async def explain_poetry(
     request: PoetryRequest,
     service: GeminiService = Depends(get_gemini_service),
@@ -279,12 +349,12 @@ async def explain_poetry(
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
+            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
+            detail="تعذر شرح النص الشعري الآن. حاول مرة أخرى لاحقاً.",
         ) from exc
 
     return PoetryResponse(

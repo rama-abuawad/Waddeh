@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     app_name: str = "Waddeh API"
     app_env: str = "development"
     frontend_origin: str = "http://localhost:3000"
+    frontend_origins: str = ""
+    frontend_url: str = ""
+    rate_limit_enabled: bool = True
+    vercel: bool = False
     gemini_api_key: str = ""
     ai_model: str = "gemini-3.6-flash"
     ai_fallback_model: str = "gemini-3.5-flash"

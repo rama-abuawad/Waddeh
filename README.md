@@ -198,6 +198,9 @@ Open `http://localhost:3000`.
 
 See [Firebase account and persistence architecture](docs/firebase-architecture.md).
 
+For production import settings, environment scope, cost controls, analytics, and
+the post-deployment Firebase checklist, follow the [Vercel deployment runbook](documentation/deployment-vercel.md).
+
 ## Testing
 
 Run the release validation commands from the repository root:

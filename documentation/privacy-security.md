@@ -21,7 +21,7 @@ The backend validates:
 
 - `Content-Type` must be `application/pdf`.
 - File bytes must include a PDF signature near the start.
-- File size must be 10 MB or smaller.
+- File size must be 4 MB or smaller so the request remains below Vercel's function payload limit.
 
 Uploaded PDF bytes are not written to local server storage or Firestore.
 
@@ -45,9 +45,11 @@ Signed-in learners use an account-specific local cache and Firestore synchroniza
 
 ## CORS
 
-Local development allows the configured `FRONTEND_ORIGIN`, defaulting to `http://localhost:3000`.
-
-For public deployment, set `FRONTEND_ORIGIN` explicitly to the production frontend URL and avoid broad origins.
+Local development allows the explicit `FRONTEND_ORIGIN`, defaulting to `http://localhost:3000`.
+An intentionally split deployment may add a comma-separated `FRONTEND_ORIGINS` list.
+The Vercel Services deployment is same-origin, and the platform-provided frontend
+service URL is accepted without hard-coding preview or production domains. Wildcard
+origins and credentialed wildcard CORS are not enabled.
 
 ## Error Handling
 
@@ -55,14 +57,15 @@ Backend routes return controlled HTTP errors for missing Gemini configuration, m
 
 Do not expose stack traces or secrets in user-facing errors.
 
-## Production Gaps
+## Production Controls
 
-Before public launch, add:
-
-- Rate limiting.
-- Abuse monitoring.
-- Deployment-specific secret management.
-- Production CORS review.
-- Larger adversarial PDF testing.
-- Dependency vulnerability review.
-- A clear privacy policy for model-provider processing.
+- AI routes have bounded Pydantic inputs, route-specific per-instance throttles,
+  and a shared AI-request throttle. A Vercel WAF rate-limit rule is still required
+  for a globally coordinated limit across scaled functions.
+- PDFs are streamed into a bounded in-memory buffer and rejected above 4 MB.
+- Cloud speech is limited to 600 characters per request; longer passages use the
+  browser's device voice to avoid oversized function responses.
+- Vercel environment variables hold deployment secrets, and `vercel.json` keeps
+  browser API traffic same-origin.
+- Public launch still requires abuse monitoring, provider quota/budget alerts,
+  adversarial PDF testing, and a user-facing privacy policy for model processing.

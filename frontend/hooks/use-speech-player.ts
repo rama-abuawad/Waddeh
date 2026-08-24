@@ -13,6 +13,7 @@ export type SpeechSource = "cloud" | "device" | null;
 
 const audioCache = new Map<string, Blob>();
 const AUDIO_CACHE_LIMIT = 10;
+const CLOUD_TTS_MAX_CHARACTERS = 600;
 
 async function browserVoices(): Promise<SpeechSynthesisVoice[]> {
   if (!("speechSynthesis" in window)) return [];
@@ -171,6 +172,10 @@ export function useSpeechPlayer() {
     setNoticeReason(null);
     setCurrentTime(0);
     setDuration(0);
+    if (cleanText.length > CLOUD_TTS_MAX_CHARACTERS) {
+      await playDevice(cleanText, language, "provider_rejected", activeRequest);
+      return;
+    }
     const cacheKey = `${language}:${cleanText}`;
     const cached = audioCache.get(cacheKey);
     if (cached) {

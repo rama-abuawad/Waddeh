@@ -2,7 +2,12 @@
 
 Base URL in local development: `http://localhost:8000`.
 
-The frontend defaults to this value through `NEXT_PUBLIC_API_BASE_URL`.
+The local frontend uses `NEXT_PUBLIC_API_BASE_URL`. Production leaves that variable
+unset and uses same-origin `/api/*` routes through Vercel Services.
+
+AI-backed routes return HTTP 429 with a safe message and `Retry-After` header when
+the per-instance guard is exceeded. A Vercel WAF rule provides the deployment-wide
+limit across scaled backend instances.
 
 ## `GET /api/health`
 
@@ -71,7 +76,7 @@ Returns `SimplifyResponse`:
 
 ## `POST /api/upload/pdf`
 
-Accepts a raw `application/pdf` body up to 10 MB with optional query params:
+Accepts a raw `application/pdf` body up to 4 MB with optional query params:
 
 ```text
 reader=general_reader&level=2

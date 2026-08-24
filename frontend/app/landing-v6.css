@@ -236,6 +236,14 @@
   .v6-landing .waddeh-hero::after { opacity: .06; mask-image: none; }
 }
 @media (max-width: 700px) {
+  .v6-landing .hero-navbar { padding-block: .75rem; }
+  .v6-landing .hero-content { padding-top: .5rem; padding-bottom: .75rem; }
+  .v6-landing .hero-eyebrow { margin-bottom: .75rem; }
+  .v6-landing .hero-heading { font-size: 3.25rem; line-height: .93; }
+  .v6-landing .hero-description { margin-top: 1rem; font-size: .94rem; line-height: 1.55; }
+  .v6-landing .hero-actions { margin-top: 1.25rem; }
+  .v6-landing .hero-chips { margin-top: 1rem; }
+  .v6-landing .hero-explore { margin-bottom: .75rem; }
   .v6-landing .hero-reading-card { right: -21rem; opacity: .18; }
   .v6-landing[dir="rtl"] .hero-reading-card { right: auto; left: -21rem; }
   .v6-landing .hero-watermark-one { right: -4rem; }

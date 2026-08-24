@@ -101,8 +101,8 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
       setAttachmentError(uiLanguage === "ar" ? "اختر ملف PDF صالحاً." : "Choose a valid PDF file.");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      setAttachmentError(uiLanguage === "ar" ? "يجب ألا يتجاوز حجم ملف PDF عشرة ميغابايت." : "The PDF must be 10 MB or smaller.");
+    if (file.size > 4 * 1024 * 1024) {
+      setAttachmentError(uiLanguage === "ar" ? "يجب ألا يتجاوز حجم ملف PDF أربعة ميغابايت." : "The PDF must be 4 MB or smaller.");
       return;
     }
     setAttachmentError("");

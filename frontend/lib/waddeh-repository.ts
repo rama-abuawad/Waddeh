@@ -206,6 +206,28 @@ export function mergeSnapshots(left: WaddehSnapshot, right: WaddehSnapshot): Wad
   };
 }
 
+function mergeGuestIntoAccount(
+  accountSnapshot: WaddehSnapshot,
+  guestSnapshot: WaddehSnapshot,
+  accountExisted: boolean,
+): WaddehSnapshot {
+  const merged = mergeSnapshots(accountSnapshot, {
+    ...guestSnapshot,
+    updatedAt: new Date().toISOString(),
+  });
+  if (!accountExisted) return merged;
+
+  return {
+    ...merged,
+    uiLanguage: accountSnapshot.uiLanguage,
+    profile: {
+      ...merged.profile,
+      preferredLevel: accountSnapshot.profile.preferredLevel,
+      levelMode: accountSnapshot.profile.levelMode,
+    },
+  };
+}
+
 function cleanData<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -300,18 +322,18 @@ export async function loadAccountSnapshot(uid: string, guestSnapshot: WaddehSnap
   try {
     const cloud = await withTimeout(loadCloudSnapshot(services.db, uid));
     let merged = cloud ? mergeSnapshots(accountCache, cloud) : accountCache;
-    if (shouldMigrateGuest) merged = mergeSnapshots(merged, { ...guestSnapshot, updatedAt: new Date().toISOString() });
+    if (shouldMigrateGuest) {
+      const accountExisted = cloud !== null || dateValue(accountCache.updatedAt) > 0;
+      merged = mergeGuestIntoAccount(merged, guestSnapshot, accountExisted);
+    }
     saveLocalSnapshot(merged, uid);
     await withTimeout(writeCloudSnapshot(services.db, uid, merged));
     if (shouldMigrateGuest) window.localStorage.setItem(MIGRATION_KEY, uid);
     return { snapshot: merged, cloudAvailable: true, migrationCompleted: shouldMigrateGuest };
   } catch (error) {
-    const fallback = shouldMigrateGuest
-      ? mergeSnapshots(accountCache, { ...guestSnapshot, updatedAt: new Date().toISOString() })
-      : accountCache;
-    saveLocalSnapshot(fallback, uid);
+    saveLocalSnapshot(accountCache, uid);
     return {
-      snapshot: fallback,
+      snapshot: accountCache,
       cloudAvailable: false,
       migrationCompleted: false,
       error: error instanceof Error ? error.message : "Cloud sync is unavailable.",

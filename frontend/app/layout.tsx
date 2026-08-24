@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import "./v4.css";
 import "./landing-v6.css";
@@ -45,6 +47,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </WaddehProvider>
         </AuthProvider>
         <PwaRegister />
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

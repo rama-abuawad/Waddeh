@@ -128,7 +128,7 @@ class ReadabilityRequest(BaseModel):
 
 
 class SpeechRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=5_000)
+    text: str = Field(min_length=1, max_length=600)
     language: Literal["ar", "en"]
 
     @field_validator("text")

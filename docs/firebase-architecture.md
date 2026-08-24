@@ -8,7 +8,7 @@ Waddeh remains guest-first. The existing browser storage is the authoritative ca
 - `users/{uid}/readings/{readingId}`: reading source text, mode, level, status, generated result, comprehension state, and reading UI state. Uploaded PDF bytes are never persisted.
 - `users/{uid}/vocabulary/{wordId}`: saved word or expression, source context, review evidence, transfer evidence, and derived mastery.
 
-The repository in `frontend/lib/waddeh-repository.ts` is the only Firestore persistence boundary. It normalizes loaded data, merges records by stable identifiers and timestamps, unions learning evidence conservatively, writes in batches, and retains local state if cloud access fails. First account sign-in copies guest data into the account cache and cloud; the guest copy is not deleted. A device-level completion marker prevents the same guest profile from being silently copied into a later, different account.
+The repository in `frontend/lib/waddeh-repository.ts` is the only Firestore persistence boundary. It normalizes loaded data, merges records by stable identifiers and timestamps, unions learning evidence conservatively, writes in batches, and retains local state if cloud access fails. First account sign-in copies guest data into the account cache and cloud; the guest copy is not deleted. Existing account language and level preferences take precedence over guest preferences, and migration waits when Firestore is unavailable so an unknown remote account is not overwritten later. A device-level completion marker prevents the same guest profile from being silently copied into a later, different account.
 
 ## Backend decision
 

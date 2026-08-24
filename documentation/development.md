@@ -7,16 +7,12 @@
 - Prefer fewer complete features over many unfinished features.
 - Do not record invented user-testing results.
 - Keep private document content and service credentials out of logs and source control.
-- Do not persist uploaded PDFs in the competition MVP; forward validated bytes only for the active AI request.
-- Keep vocabulary and learning progress on the user's device until accounts and consent-based synchronization are designed.
+- Do not persist uploaded PDF bytes; forward validated bytes only for the active AI request.
+- Preserve guest-first local continuity and UID-scoped account synchronization.
 
 ## Branches
 
-Use `main` for stable reviewed work.
-
-Use `competition/waddeh-v2` for the current competition transformation. Do not commit competition development directly to `main`, and do not force-push shared branches.
-
-Feature branches may branch from `competition/waddeh-v2` when parallel work needs isolation. Integrate only reviewed changes that preserve the central backend/frontend API contract.
+Use `main` for stable reviewed work. Create focused feature or fix branches from the latest `main`, validate them, and merge through review. Do not force-push shared branches. Preserve the central backend/frontend API contract.
 
 ## Validation
 

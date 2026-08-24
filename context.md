@@ -1,4 +1,4 @@
-# Waddeh V2 Product Context
+# Waddeh Product Context
 
 Waddeh helps learners understand authentic Arabic at their current level and progressively guides them toward reading the original language independently.
 
@@ -21,7 +21,7 @@ Waddeh closes the gap between:
 - The Arabic the learner understands today.
 - The authentic Arabic they want to understand eventually.
 
-## Competition Journey
+## Product Journey
 
 ```text
 Authentic Arabic
@@ -55,12 +55,13 @@ Waddeh is not:
 
 ## Current Implementation
 
-Implemented in this branch:
+Implemented in the current product:
 
 - Next.js Arabic-first PWA frontend.
 - FastAPI backend.
 - Gemini integration behind the backend.
 - Text and PDF adaptation requests.
+- Standard reading, poetry explanation, and PDF reading workflows.
 - Deterministic readability assessment.
 - Learner-controlled level setup: manual selection or a short placement check with optional automatic adjustment from later comprehension checks.
 - Controlled adaptation strategy.
@@ -69,8 +70,12 @@ Implemented in this branch:
 - Contextual Word Lens.
 - Meaning Threads for pronouns, actors, connectors, negation, conditions, and references.
 - English translation support.
-- Device-local Reading Memory with saved-word MCQ review, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals.
+- Guest-first Reading Memory with saved-word review, transfer challenges, evidence-based vocabulary mastery, comprehension feedback, and recurring difficulty signals.
 - Bridge Mode response and UI.
+- Text-to-speech, Reading History, Learning Path, and Learning Map.
+- Firebase Authentication with Google and email/password accounts.
+- UID-scoped Firestore synchronization with guest-to-account migration and account-specific local caching.
+- Arabic and English RTL/LTR interfaces.
 - Backend tests and deterministic evaluation starter set.
 - GitHub Actions validation workflow.
 
@@ -78,9 +83,10 @@ Implemented in this branch:
 
 - Readability level is a heuristic, not a validated academic score.
 - Semantic integrity and Bridge Mode quality require Gemini and human review.
-- PDF source text is not persisted, so deterministic source-vs-adapted integrity is limited for PDFs in this MVP.
-- Reading Memory is device-local only and is based on placement and quiz evidence, not a validated proficiency model.
-- No accounts, sync, large document management, OCR, or generic chat are included.
+- Raw PDF bytes are not persisted, so learners must reattach a PDF when retrying after the page closes.
+- Reading Memory reflects placement, quiz, comprehension, and transfer evidence; it is not a validated proficiency model.
+- Cloud synchronization requires configured Firebase services; guest mode remains local to the browser.
+- Large document management, OCR, and generic chat are intentionally outside the product scope.
 
 ## Roadmap
 

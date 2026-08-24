@@ -1,6 +1,6 @@
 # Privacy and Security Notes
 
-This document describes the current competition MVP posture. It is not a claim that Waddeh is fully secure for public production traffic.
+This document describes the current application posture. It is not a claim that Waddeh is fully secure for public production traffic.
 
 ## Secrets
 
@@ -23,11 +23,11 @@ The backend validates:
 - File bytes must include a PDF signature near the start.
 - File size must be 10 MB or smaller.
 
-Uploaded PDFs are not written to local server storage in the MVP.
+Uploaded PDF bytes are not written to local server storage or Firestore.
 
-## Local Browser Data
+## Browser and Account Data
 
-The frontend stores the following in `localStorage`:
+Guest mode stores the following in browser storage:
 
 - UI language.
 - Saved vocabulary.
@@ -39,7 +39,9 @@ The frontend stores the following in `localStorage`:
 - Comprehension feedback counts.
 - Meaning Thread categories the learner explicitly opened.
 
-This data stays on the current browser/device. A bounded snapshot of relevant vocabulary and difficulty categories is sent to the backend only with an active adaptation request so the next reading can be personalized. There are no accounts or sync features in this version.
+Guest data stays on the current browser/device. A bounded snapshot of relevant vocabulary and difficulty categories is sent to the backend only with an active adaptation request so the next reading can be personalized.
+
+Signed-in learners use an account-specific local cache and Firestore synchronization. Account data is stored under `users/{uid}` and UID-scoped reading and vocabulary subcollections. Firestore rules require the authenticated UID to match the requested user path. Guest-to-account migration copies and conservatively merges learning state; it does not delete the guest copy. Raw PDF bytes are never included in Firestore records.
 
 ## CORS
 

@@ -1,6 +1,6 @@
 # Evaluation Strategy
 
-Waddeh V2 needs evidence for the learning journey, not generic model impressiveness.
+Waddeh needs evidence for the learning journey, not generic model impressiveness.
 
 ## Current Automated Coverage
 

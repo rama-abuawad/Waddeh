@@ -1,6 +1,6 @@
 # Waddeh Evaluation
 
-This directory contains a small, safe evaluation starter set for the Waddeh V2 competition branch.
+This directory contains a small, safe evaluation set for Waddeh's reading and learning pipeline.
 
 The sample passages are self-created and short. They cover:
 

@@ -37,7 +37,7 @@ Waddeh must not become:
 - Gemini credentials must stay behind the FastAPI backend.
 - Do not invent metrics, user-test results, partnerships, awards, or unsupported claims.
 - Do not force-push.
-- Do not commit competition development directly to `main`.
+- Use branch-based development and merge only reviewed, validated work into `main`.
 
 ## Local Commands
 
@@ -45,7 +45,7 @@ Install dependencies from the repository root:
 
 ```powershell
 npm.cmd install
-& 'C:\Users\mukes\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -m venv backend\.venv
+python -m venv backend\.venv
 backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
 ```
 

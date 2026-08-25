@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.schemas import (
     PoetryOutput,
     PoetryRequest,
+    PdfSimplificationOutput,
     ReadingMemorySnapshot,
     ReaderType,
     SemanticIntegrityAssessment,
@@ -35,6 +36,12 @@ def _normalize_arabic_word(value: str) -> str:
     return re.sub(r"[\u064b-\u065f\u0670ـ\s]", "", value)
 
 
+def _contains_readable_arabic(value: str) -> bool:
+    if any(marker in value for marker in ("\x00", "\ufffd", "þÿ", "ÿþ")):
+        return False
+    return len(re.findall(r"[\u0600-\u06ff]", value)) >= 8
+
+
 class GeminiConfigurationError(RuntimeError):
     """Raised when Gemini is not configured."""
 
@@ -50,6 +57,10 @@ class GeminiSpeechError(GeminiServiceError):
         super().__init__(message)
         self.code = code
         self.http_status = http_status
+
+
+class PdfContentError(GeminiServiceError):
+    """Raised when a PDF result does not contain readable source Arabic."""
 
 
 READER_DESCRIPTIONS = {
@@ -107,18 +118,44 @@ class GeminiService:
         reader: ReaderType,
         level: SimplificationLevel,
         reading_memory: ReadingMemorySnapshot | None = None,
-    ) -> SimplificationOutput:
+        extracted_arabic: str | None = None,
+    ) -> PdfSimplificationOutput:
+        extracted_instruction = (
+            """
+استخراج نصي موثوق من المستند متاح أدناه. انسخه في original_text كما هو، مع الحفاظ على فواصل
+الفقرات والترتيب. لا تعِد صياغته ولا تستبدله بنص أوضح:
+<extracted_pdf_arabic>
+{text}
+</extracted_pdf_arabic>
+""".strip().format(text=extracted_arabic)
+            if extracted_arabic
+            else (
+                "لا يوجد استخراج نصي موثوق. أعد بناء original_text من العربية المرئية في صفحات "
+                "المستند، محافظاً على الصياغة والترتيب والحدود بين الأقسام قدر الإمكان."
+            )
+        )
         prompt = self._build_simplification_prompt(
             reader=reader,
             level=level,
             reading_memory=reading_memory,
+            translation_instruction=(
+                "ترجم original_text كاملاً إلى إنجليزية طبيعية وأمينة في english_translation. "
+                "لا تترجم simplified_text بدلاً منه، ولا تلخّص أي قسم."
+            ),
             source_instruction=(
-                "اقرأ المستند العربي المرفق كاملاً بالترتيب. تجاهل رؤوس الصفحات وأرقام "
-                "الصفحات المتكررة، ثم وضّح محتواه كوحدة مترابطة. لا تخترع نصاً غير ظاهر في المستند. "
-                "إذا ظهرت لك علامات ترميز تالفة مثل þÿ أو أحرف مفككة لا تكوّن نصاً عربياً مقروءاً، "
-                "فلا تعرض النص التالف في أي حقل موجه للمستخدم. استخلص العربية المقصودة قدر الإمكان، "
-                "واجعل جميع مستويات bridge عربية مقروءة. إذا تعذر الجزم بصياغة المصدر، فاجعل آخر "
-                "مستوى صياغة عربية سليمة تحافظ على المعنى بدلاً من عرض نص مشوه."
+                """تعليمات PDF الإلزامية:
+- اقرأ المستند العربي المرفق كاملاً وبالترتيب.
+- original_text هو نص المصدر المقروء من المستند، وليس simplified_text ولا ملخصاً.
+- حافظ في original_text على العناوين والأقسام والفقرات والأسماء والتواريخ والأرقام والمتطلبات والأمثلة والتكرار ذي المعنى.
+- لا تضغط عدة أقسام في سرد جديد، ولا تخترع عبارات ربط، ولا تستبدل عنواناً أو فقرة بإعادة صياغة.
+- يجوز حذف أرقام الصفحات والرؤوس المتكررة بوضوح فقط.
+- إذا كان ترميز الخط مكسوراً أو كانت الصفحة مصورة، انسخ العربية المرئية بأمانة وبترتيبها. عند الشك اختر نسخاً محافظاً مقروءاً ولا تخترع محتوى.
+- لا تُظهر أبداً محارف تالفة أو تسلسلات ترميز مكسورة في أي حقل.
+- english_translation ترجمة كاملة وأمينة لـ original_text، وليست ملخصاً.
+- simplified_text وحده هو النسخة العربية المتكيفة مع القارئ والمستوى وذاكرة القراءة، ويجب أن يبقى منفصلاً عن original_text.
+- اجعل change_map والبطاقات وأدوات التعلم مبنية على المصدر والتبسيط من دون حذف تفاصيل المصدر.
+
+{extracted_instruction}""".format(extracted_instruction=extracted_instruction)
             ),
         )
         input_data = [
@@ -129,7 +166,11 @@ class GeminiService:
             },
             {"type": "text", "text": prompt},
         ]
-        result = self._generate(input_data=input_data, output_model=SimplificationOutput)
+        result = self._generate(input_data=input_data, output_model=PdfSimplificationOutput)
+        if extracted_arabic:
+            result.original_text = extracted_arabic
+        if not _contains_readable_arabic(result.original_text):
+            raise PdfContentError("PDF source Arabic could not be reconstructed safely.")
         result.adaptation_strategy = build_adaptation_strategy(level)
         return result
 
@@ -602,7 +643,7 @@ class GeminiService:
     def _response_schema(cls, output_model: type[OutputModel]) -> dict[str, Any]:
         schema = copy.deepcopy(output_model.model_json_schema())
 
-        if output_model is SimplificationOutput:
+        if issubclass(output_model, SimplificationOutput):
             properties = schema.get("properties")
             if isinstance(properties, dict):
                 properties.pop("adaptation_strategy", None)
@@ -704,6 +745,9 @@ class GeminiService:
         level: SimplificationLevel,
         source_instruction: str,
         reading_memory: ReadingMemorySnapshot | None = None,
+        translation_instruction: str = (
+            "ترجم النص الواضح كاملاً إلى إنجليزية طبيعية ودقيقة في english_translation."
+        ),
     ) -> str:
         reader_description = READER_DESCRIPTIONS[reader.value]
         level_description = LEVEL_DESCRIPTIONS[int(level)]
@@ -758,7 +802,7 @@ class GeminiService:
 - في النصوص العربية الموجهة للقارئ، سمِّ bridge «مسار التدرّج»، وقل «النص كما ورد» أو «صياغة المصدر». لا تستخدم الاسم الإنجليزي للميزة، ولا تستخدم مشتقات الجذر «أ ص ل» في وصف النص.
 - إذا كان المستوى «كما ورد»، أعد النص من دون تغيير في simplified_text.
 - أنشئ diacritized_text من simplified_text نفسه، وأضف التشكيل للكلمات الصعبة أو الملتبسة فقط، لا لكل النص.
-- ترجم النص الواضح كاملاً إلى إنجليزية طبيعية ودقيقة في english_translation.
+- {translation_instruction}
 - لا تجعل الترجمة حرفية إذا كان ذلك سيشوّه المعنى، ولا تحذف أي شرط أو حقيقة.
 - ضع في preserved_details أهم الأسماء والتواريخ والأرقام والشروط والتحذيرات التي حافظت عليها. يمكن أن تكون القائمة فارغة.
 - ترجم عناصر preserved_details بدقة وبالترتيب نفسه إلى preserved_details_english.

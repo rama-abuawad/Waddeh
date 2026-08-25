@@ -13,6 +13,7 @@ export type ReadingSource = "text" | "pdf";
 export type ReadingStatus = "pending" | "processing" | "ready" | "error";
 export type ReadingRecovery = "interrupted" | "pdf_file_missing";
 export type ReadingTab = "understand" | "simplify" | "learn";
+export type ReadingSize = "smaller" | "default" | "larger";
 export type WordMasteryStatus = "new" | "learning" | "mastered";
 export type SavedItemKind = "word" | "expression";
 
@@ -268,9 +269,7 @@ export function buildSavedVocabularyQuiz(
 
 export function readingArabic(record: ReadingRecord): string {
   if (!record.result) return record.sourceText;
-  return record.result.data.original_text || (
-    record.result.kind === "standard" ? record.result.data.simplified_text : record.sourceText
-  );
+  return record.result.data.original_text;
 }
 
 export function readingPreview(record: ReadingRecord, language: UiLanguage): string {

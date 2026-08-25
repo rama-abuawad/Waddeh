@@ -31,6 +31,7 @@ import {
   type LearningProfile,
   type NewReadingInput,
   type ReadingRecord,
+  type ReadingSize,
   type ReadingTab,
   type SavedItemKind,
   type SavedWord,
@@ -56,6 +57,8 @@ interface WaddehContextValue {
   hydrated: boolean;
   uiLanguage: UiLanguage;
   setUiLanguage: (language: UiLanguage) => void;
+  readingSize: ReadingSize;
+  setReadingSize: (size: ReadingSize) => void;
   savedWords: SavedWord[];
   profile: LearningProfile;
   readings: ReadingRecord[];
@@ -82,11 +85,13 @@ interface WaddehContextValue {
 }
 
 const WaddehContext = createContext<WaddehContextValue | null>(null);
+const READING_SIZE_KEY = "waddeh-reading-size-v1";
 
 export default function WaddehProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [hydrated, setHydrated] = useState(false);
   const [uiLanguage, setUiLanguageState] = useState<UiLanguage>("ar");
+  const [readingSize, setReadingSizeState] = useState<ReadingSize>("default");
   const [savedWords, setSavedWords] = useState<SavedWord[]>([]);
   const [profile, setProfile] = useState<LearningProfile>(initialProfile);
   const [readings, setReadings] = useState<ReadingRecord[]>([]);
@@ -102,11 +107,14 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     const snapshot = loadLocalSnapshot();
+    const storedReadingSize = window.localStorage.getItem(READING_SIZE_KEY);
     setUiLanguageState(snapshot.uiLanguage);
     setSavedWords(snapshot.savedWords);
     setProfile(snapshot.profile);
     setReadings(snapshot.readings);
     setDeletions(snapshot.deletions);
+    const normalizedReadingSize = storedReadingSize === "smaller" || storedReadingSize === "larger" ? storedReadingSize : "default";
+    setReadingSizeState(normalizedReadingSize);
     setHydrated(true);
   }, []);
 
@@ -126,6 +134,15 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = uiLanguage;
     document.documentElement.dir = uiLanguage === "ar" ? "rtl" : "ltr";
   }, [uiLanguage]);
+
+  const setReadingSize = useCallback((size: ReadingSize) => {
+    setReadingSizeState(size);
+    try {
+      window.localStorage.setItem(READING_SIZE_KEY, size);
+    } catch {
+      // The current in-memory preference remains usable when storage is unavailable.
+    }
+  }, []);
 
   const applySnapshot = useCallback((snapshot: WaddehSnapshot) => {
     setUiLanguageState(snapshot.uiLanguage);
@@ -481,6 +498,8 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     hydrated,
     uiLanguage,
     setUiLanguage,
+    readingSize,
+    setReadingSize,
     savedWords,
     profile,
     readings,
@@ -501,7 +520,7 @@ export default function WaddehProvider({ children }: { children: ReactNode }) {
     setPreferredLevel,
     completePlacement,
   }), [
-    hydrated, uiLanguage, setUiLanguage, savedWords, profile, readings, cloudSync, createReading,
+    hydrated, uiLanguage, setUiLanguage, readingSize, setReadingSize, savedWords, profile, readings, cloudSync, createReading,
     processReading, retryReading, reattachPdf, reopenReading, deleteReading, setReadingTab, saveWord,
     removeWord, recordVocabularyQuiz, recordTransferResult, recordComprehension,
     recordMeaningThread, setPreferredLevel, completePlacement,

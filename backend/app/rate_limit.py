@@ -58,6 +58,12 @@ class SlidingWindowRateLimiter:
             if len(self._events) <= self._max_buckets:
                 break
 
+    def reset(self) -> None:
+        """Clear in-memory buckets; intended for deterministic test isolation."""
+        with self._lock:
+            self._events.clear()
+            self._windows.clear()
+
 
 _limiter = SlidingWindowRateLimiter()
 

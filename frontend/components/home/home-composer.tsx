@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent, type For
 import { useWaddeh } from "@/components/waddeh-provider";
 import type { ReaderType } from "@/lib/api";
 import { copyFor } from "@/lib/v4-copy";
+import { validatePdfFile } from "@/lib/pdf-validation";
 import { learnerLevels, type InputMode } from "@/lib/waddeh-store";
 
 const standardExample = "يتعين على المتقدم تقديم 3 وثائق رسمية واستيفاء جميع الشروط قبل الساعة الخامسة مساءً يوم 30 أغسطس 2026. ويُشترط ألا يقل عمره عن 18 عاماً، ولن تُقبل الطلبات المتأخرة، باستثناء من حصل على موافقة خطية مسبقة.";
@@ -37,14 +38,11 @@ export default function HomeComposer() {
     element.style.overflowY = element.scrollHeight > 360 ? "auto" : "hidden";
   }, [mode, text]);
 
-  function acceptFile(nextFile: File | null) {
+  async function acceptFile(nextFile: File | null) {
     if (!nextFile) return;
-    if (nextFile.type !== "application/pdf" && !nextFile.name.toLowerCase().endsWith(".pdf")) {
-      setError(copy.pdfOnly);
-      return;
-    }
-    if (nextFile.size > 4 * 1024 * 1024) {
-      setError(copy.pdfLarge);
+    const validationError = await validatePdfFile(nextFile);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     setMode("standard");
@@ -55,7 +53,7 @@ export default function HomeComposer() {
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setDragging(false);
-    acceptFile(event.dataTransfer.files?.[0] ?? null);
+    void acceptFile(event.dataTransfer.files?.[0] ?? null);
   }
 
   function handleSubmit(event: FormEvent) {
@@ -115,7 +113,7 @@ export default function HomeComposer() {
                 <button type="button" role="tab" aria-selected={mode === "poetry"} className={mode === "poetry" ? "active" : ""} onClick={() => { setMode("poetry"); setFile(null); }}>{copy.poetry}</button>
               </div>
               <span className="v4-composer-toolbar-divider" aria-hidden="true" />
-              {mode === "standard" && <><input ref={fileInput} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => acceptFile(event.target.files?.[0] ?? null)} /><button type="button" className="v4-tool-button" onClick={() => fileInput.current?.click()}><Paperclip /> {copy.attach}</button></>}
+              {mode === "standard" && <><input ref={fileInput} type="file" accept="application/pdf,.pdf" hidden onChange={(event) => { void acceptFile(event.target.files?.[0] ?? null); event.target.value = ""; }} /><button type="button" className="v4-tool-button" onClick={() => fileInput.current?.click()}><Paperclip /> {copy.attach}</button></>}
               {!file && <button type="button" className="v4-tool-button" onClick={() => setText(mode === "poetry" ? poetryExample : standardExample)}>{copy.sample}</button>}
             </div>
             <button type="submit" className="v4-submit-button">{copy.submit}<ArrowRight className={uiLanguage === "ar" ? "rtl-arrow" : ""} /></button>

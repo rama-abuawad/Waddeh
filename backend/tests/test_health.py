@@ -1,4 +1,7 @@
+import io
+
 from fastapi.testclient import TestClient
+from pypdf import PdfWriter
 
 from app.main import app
 from app.schemas import (
@@ -11,6 +14,7 @@ from app.schemas import (
     CulturalMeaningItem,
     LearningCard,
     MeaningThread,
+    PdfSimplificationOutput,
     PoetryLineExplanation,
     PoetryOutput,
     PoetryVocabularyItem,
@@ -141,8 +145,17 @@ class FakeGeminiService:
             ),
         )
 
-    def simplify_pdf(self, *_args: object) -> SimplificationOutput:
-        return self.simplify(object())
+    def simplify_pdf(self, *_args: object) -> PdfSimplificationOutput:
+        result = self.simplify(object())
+        return PdfSimplificationOutput(
+            original_text=(
+                "القسم الأول\n"
+                "يتعين على المتقدم استيفاء جميع الشروط قبل انقضاء الموعد المحدد.\n\n"
+                "القسم الثاني\n"
+                "لن تُقبل الطلبات المتأخرة."
+            ),
+            **result.model_dump(),
+        )
 
     def verify_integrity(self, *_args: object) -> SemanticIntegrityAssessment:
         return SemanticIntegrityAssessment(
@@ -300,12 +313,21 @@ def test_simplify_rejects_non_arabic_text() -> None:
     assert response.status_code == 422
 
 
+def make_pdf(page_count: int) -> bytes:
+    writer = PdfWriter()
+    for _ in range(page_count):
+        writer.add_blank_page(width=595, height=842)
+    output = io.BytesIO()
+    writer.write(output)
+    return output.getvalue()
+
+
 def test_pdf_understanding_accepts_valid_pdf_bytes() -> None:
     app.dependency_overrides[get_gemini_service] = lambda: FakeGeminiService()
     try:
         response = client.post(
             "/api/upload/pdf?reader=general_reader&level=2",
-            content=b"%PDF-1.7\n% test document",
+            content=make_pdf(1),
             headers={
                 "Content-Type": "application/pdf",
                 "X-File-Name": "sample-arabic.pdf",
@@ -316,7 +338,56 @@ def test_pdf_understanding_accepts_valid_pdf_bytes() -> None:
 
     assert response.status_code == 200
     assert response.json()["source_name"] == "sample-arabic.pdf"
-    assert response.json()["original_text"] == ""
+    assert response.json()["original_text"].startswith("القسم الأول")
+    assert response.json()["original_text"] != response.json()["simplified_text"]
+
+
+def test_pdf_understanding_accepts_five_pages() -> None:
+    app.dependency_overrides[get_gemini_service] = lambda: FakeGeminiService()
+    try:
+        response = client.post(
+            "/api/upload/pdf?reader=general_reader&level=2",
+            content=make_pdf(5),
+            headers={"Content-Type": "application/pdf"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["original_text"].startswith("القسم الأول")
+
+
+def test_pdf_understanding_accepts_four_pages() -> None:
+    app.dependency_overrides[get_gemini_service] = lambda: FakeGeminiService()
+    try:
+        response = client.post(
+            "/api/upload/pdf?reader=general_reader&level=2",
+            content=make_pdf(4),
+            headers={"Content-Type": "application/pdf"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+
+
+def test_pdf_understanding_rejects_six_pages_before_ai_processing() -> None:
+    class UnexpectedGeminiService(FakeGeminiService):
+        def simplify_pdf(self, *_args: object) -> PdfSimplificationOutput:
+            raise AssertionError("Six-page PDFs must be rejected before AI processing.")
+
+    app.dependency_overrides[get_gemini_service] = lambda: UnexpectedGeminiService()
+    try:
+        response = client.post(
+            "/api/upload/pdf",
+            content=make_pdf(6),
+            headers={"Content-Type": "application/pdf"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
+    assert "limited to 5 pages" in response.text
 
 
 def test_pdf_understanding_rejects_invalid_file() -> None:

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { BookOpenText, House, LogIn, UserRound } from "lucide-react";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { useWaddeh } from "@/components/waddeh-provider";
@@ -15,6 +15,77 @@ const navItems = [
   { href: "/learning", key: "learning" as const, icon: BookOpenText },
   { href: "/profile", key: "profile" as const, icon: UserRound },
 ];
+
+function ReadingSizeControl() {
+  const { uiLanguage, readingSize, setReadingSize } = useWaddeh();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const choices = [
+    { value: "smaller" as const, en: "Smaller", ar: "أصغر" },
+    { value: "default" as const, en: "Default", ar: "افتراضي" },
+    { value: "larger" as const, en: "Larger", ar: "أكبر" },
+  ];
+  const label = uiLanguage === "ar" ? "حجم القراءة" : "Reading size";
+
+  useEffect(() => {
+    if (!open) return;
+    rootRef.current?.querySelector<HTMLButtonElement>(`[data-size="${readingSize}"]`)?.focus();
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (rootRef.current && !event.composedPath().includes(rootRef.current)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
+  }, [open, readingSize]);
+
+  function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+    const currentIndex = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const delta = event.key === "ArrowDown" ? 1 : -1;
+    buttons[(currentIndex + delta + buttons.length) % buttons.length]?.focus();
+  }
+
+  return (
+    <div ref={rootRef} className="v4-reading-size-control">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="v4-reading-size-trigger"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="reading-size-menu"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <b aria-hidden="true">Aa</b><span>{label}</span>
+      </button>
+      {open && (
+        <div id="reading-size-menu" className="v4-reading-size-menu" role="menu" aria-label={label} onKeyDown={handleMenuKeyDown}>
+          {choices.map((choice) => (
+            <button
+              key={choice.value}
+              type="button"
+              role="menuitemradio"
+              aria-checked={readingSize === choice.value}
+              data-size={choice.value}
+              onClick={() => { setReadingSize(choice.value); setOpen(false); triggerRef.current?.focus(); }}
+            >
+              <span>{uiLanguage === "ar" ? choice.ar : choice.en}</span><b aria-hidden="true">{choice.value === "smaller" ? "A" : choice.value === "larger" ? "A+" : "Aa"}</b>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -27,6 +98,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { uiLanguage, setUiLanguage } = useWaddeh();
   const copy = copyFor(uiLanguage).shell;
   const usesHeroNavbar = pathname === "/" || pathname.startsWith("/learning");
+  const isReadingWorkspace = pathname.startsWith("/reading/");
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -46,7 +118,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="v4-app-shell">
       <a className="v4-skip-link" href="#main-content">{uiLanguage === "ar" ? "انتقل إلى المحتوى" : "Skip to content"}</a>
-      <header className={`v4-topbar ${usesHeroNavbar ? "is-home" : ""}`}>
+      <header className={`v4-topbar ${usesHeroNavbar ? "is-home" : ""} ${isReadingWorkspace ? "is-reading" : ""}`}>
         <div className="v4-topbar-inner">
           <Link href="/" className="v4-wordmark" aria-label={uiLanguage === "ar" ? "وضّح — الرئيسية" : "Waddeh — Home"}>
             <Image src="/brand/Waddeh_Brand/waddeh-icon.svg" alt="" width={40} height={40} priority />
@@ -63,9 +135,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               {user ? <UserRound aria-hidden="true" /> : <LogIn aria-hidden="true" />}
               <span className={user ? "max-w-32 truncate" : ""}>{user ? (user.displayName ?? user.email ?? copy.profile) : copy.signIn}</span>
             </Link>}
-            <Link href="/#start" className="v4-navbar-cta">
+            {isReadingWorkspace ? <ReadingSizeControl /> : <Link href="/#start" className="v4-navbar-cta">
               <span>{copy.start}</span>
-            </Link>
+            </Link>}
           </div>
         </div>
       </header>

@@ -12,6 +12,7 @@ import WordLensSheet, { type WordLensState } from "@/components/reading/word-len
 import { useWaddeh } from "@/components/waddeh-provider";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { explainWord, type CulturalMeaningItem, type WordExplanation } from "@/lib/api";
+import { validatePdfFile } from "@/lib/pdf-validation";
 import { copyFor } from "@/lib/v4-copy";
 import { readingArabic, wordCount, type ReadingTab } from "@/lib/waddeh-store";
 
@@ -58,6 +59,7 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
   const {
     hydrated,
     uiLanguage,
+    readingSize,
     readings,
     savedWords,
     processReading,
@@ -93,16 +95,13 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
 
   const closeWordLens = useCallback(() => setWordLens(null), []);
 
-  function handleRecoveryFile(event: ChangeEvent<HTMLInputElement>) {
+  async function handleRecoveryFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!reading || !file) return;
-    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
-      setAttachmentError(uiLanguage === "ar" ? "اختر ملف PDF صالحاً." : "Choose a valid PDF file.");
-      return;
-    }
-    if (file.size > 4 * 1024 * 1024) {
-      setAttachmentError(uiLanguage === "ar" ? "يجب ألا يتجاوز حجم ملف PDF أربعة ميغابايت." : "The PDF must be 4 MB or smaller.");
+    const validationError = await validatePdfFile(file);
+    if (validationError) {
+      setAttachmentError(validationError);
       return;
     }
     setAttachmentError("");
@@ -181,14 +180,14 @@ export default function ReadingExperience({ readingId }: { readingId: string }) 
   }
 
   return (
-    <div className={`v4-reading-page ${compact ? "is-compact" : ""}`}>
+    <div className={`v4-reading-page reading-size-${readingSize} ${compact ? "is-compact" : ""}`}>
       <header className="v4-reading-header">
         <button type="button" aria-label={copy.back} onClick={() => router.back()}><ArrowLeft className={uiLanguage === "ar" ? "rtl-arrow" : ""} /><span>{copy.back}</span></button>
         <div><span>{sourceLabel}</span><strong dir="rtl">{reading.title}</strong></div>
         <Link href="/#start" aria-label={copy.newReading}><span>{copy.newReading}</span><Plus aria-hidden="true" /></Link>
       </header>
 
-      <div className="v4-reading-layout">
+      <div className={`v4-reading-layout ${activeTool || wordLens ? "is-explore-active" : ""}`}>
         <article className="v4-reading-main">
           <section className="v4-arabic-surface" aria-labelledby="arabic-title">
             <header className="v4-reading-surface-header">

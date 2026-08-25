@@ -31,9 +31,11 @@ from app.services.gemini import (
     GeminiService,
     GeminiServiceError,
     GeminiSpeechError,
+    PdfContentError,
     get_gemini_service,
 )
 from app.services.integrity import build_deterministic_integrity_report, combine_integrity_reports
+from app.services.pdf_documents import InvalidPdfError, inspect_pdf
 from app.services.readability import assess_readability
 
 settings = get_settings()
@@ -157,7 +159,7 @@ async def simplify_pdf(
     if content_type != "application/pdf":
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="يُسمح بملفات PDF فقط.",
+            detail="Only PDF files are allowed. / يُسمح بملفات PDF فقط.",
         )
 
     chunks: list[bytes] = []
@@ -167,19 +169,41 @@ async def simplify_pdf(
         if total_size > 4 * 1024 * 1024:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="يجب ألا يتجاوز حجم ملف PDF أربعة ميغابايت.",
+                detail=(
+                    "The PDF must be 4 MB or smaller. / "
+                    "يجب ألا يتجاوز حجم ملف PDF أربعة ميغابايت."
+                ),
             )
         chunks.append(chunk)
     pdf_bytes = b"".join(chunks)
     if not pdf_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="ملف PDF فارغ.",
+            detail="The PDF is empty. / ملف PDF فارغ.",
         )
     if b"%PDF-" not in pdf_bytes[:1024]:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="الملف المرفوع ليس ملف PDF صالحاً.",
+            detail="The uploaded file is not a valid PDF. / الملف المرفوع ليس ملف PDF صالحاً.",
+        )
+
+    try:
+        inspection = await run_in_threadpool(inspect_pdf, pdf_bytes)
+    except InvalidPdfError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                "The uploaded file is not a readable PDF. / "
+                "الملف المرفوع ليس ملف PDF صالحاً يمكن قراءته."
+            ),
+        ) from exc
+    if inspection.page_count > 5:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "For this prototype, PDF documents are limited to 5 pages. / "
+                "في النسخة التجريبية، يقتصر ملف PDF على 5 صفحات كحد أقصى."
+            ),
         )
 
     try:
@@ -206,32 +230,48 @@ async def simplify_pdf(
             reader,
             level,
             memory,
+            inspection.extracted_arabic,
         )
     except GeminiConfigurationError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
+            detail=(
+                "The AI provider is temporarily unavailable. / "
+                "خدمة الذكاء الاصطناعي غير متاحة مؤقتاً."
+            ),
+        ) from exc
+    except PdfContentError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "The Arabic text or content in this PDF could not be read. / "
+                "تعذر قراءة النص العربي أو محتوى ملف PDF."
+            ),
         ) from exc
     except GeminiServiceError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="تعذر إكمال الطلب الآن. حاول مرة أخرى لاحقاً.",
+            detail=(
+                "The PDF could not be processed because the AI provider is unavailable. "
+                "Please try again later. / تعذر تجهيز ملف PDF لأن خدمة الذكاء الاصطناعي "
+                "غير متاحة. حاول مرة أخرى لاحقاً."
+            ),
         ) from exc
 
     readability_result = assess_readability(result.simplified_text)
     deterministic_integrity = build_deterministic_integrity_report(
-        source_text="",
+        source_text=result.original_text,
         adapted_text=result.simplified_text,
     )
 
     return SimplifyResponse(
-        original_text="",
+        original_text=result.original_text,
         source_name=safe_name,
         reader=reader,
         level=level,
         readability=readability_result,
         meaning_integrity=deterministic_integrity,
-        **result.model_dump(),
+        **result.model_dump(exclude={"original_text"}),
     )
 
 

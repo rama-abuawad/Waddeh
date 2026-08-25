@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from app.schemas import (
     PoetryOutput,
     PoetryRequest,
+    PdfSimplificationOutput,
     ReaderType,
     ReadingMemorySnapshot,
     SimplificationLevel,
@@ -117,6 +118,31 @@ def test_simplification_prompt_uses_reading_memory_and_meaning_threads() -> None
     assert "cultural_meanings" in prompt
     assert "انسخ العبارة من المصدر حرفياً" in prompt
     assert "english_equivalent" in prompt
+
+
+def test_pdf_schema_and_prompt_keep_source_translation_separate_from_simplification() -> None:
+    schema = GeminiService._response_schema(PdfSimplificationOutput)
+    service = GeminiService("test-key", "gemini-test")
+    extracted = "العنوان\nالقسم الأول\nيجب تقديم ثلاثة مستندات قبل 30 أغسطس 2026."
+
+    with patch.object(service, "_generate", side_effect=RuntimeError("captured")) as generate:
+        with pytest.raises(RuntimeError, match="captured"):
+            service.simplify_pdf(
+                b"%PDF-1.7",
+                ReaderType.general_reader,
+                SimplificationLevel.easy,
+                extracted_arabic=extracted,
+            )
+
+    input_data = generate.call_args.kwargs["input_data"]
+    prompt = input_data[1]["text"]
+    assert "original_text" in schema["properties"]
+    assert "adaptation_strategy" not in schema["properties"]
+    assert extracted in prompt
+    assert "original_text هو نص المصدر" in prompt
+    assert "english_translation ترجمة كاملة وأمينة لـ original_text" in prompt
+    assert "ولا تلخّص أي قسم" in prompt
+    assert "simplified_text وحده هو النسخة العربية المتكيفة" in prompt
 
 
 def test_poetry_schema_and_prompt_include_cultural_meanings() -> None:

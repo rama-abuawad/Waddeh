@@ -360,6 +360,16 @@ class SimplificationOutput(BaseModel):
     comprehension_check: ComprehensionCheck
 
 
+class PdfSimplificationOutput(SimplificationOutput):
+    original_text: str = Field(
+        min_length=1,
+        description=(
+            "Faithful readable Arabic from the PDF in document order, separate from "
+            "the adaptive simplified Arabic. Never a summary."
+        ),
+    )
+
+
 class SimplifyResponse(SimplificationOutput):
     original_text: str
     reader: ReaderType

@@ -116,12 +116,10 @@ def test_simplification_schema_is_gemini_compatible() -> None:
     assert "maxLength" not in schema_text
     assert "minLength" not in schema_text
     assert "pattern" not in schema_text
-    assert schema["properties"]["learning_cards"]["maxItems"] == 3
-    assert schema["properties"]["bridge"]["properties"]["levels"]["minItems"] == 3
-    assert schema["properties"]["bridge"]["properties"]["levels"]["maxItems"] == 5
-    comprehension = schema["properties"]["comprehension_check"]["properties"]
-    assert comprehension["correct_choice_index"]["minimum"] == 0
-    assert comprehension["correct_choice_index"]["maximum"] == 2
+    assert "maxItems" not in schema_text
+    assert "minItems" not in schema_text
+    assert "maximum" not in schema_text
+    assert "minimum" not in schema_text
 
 
 def test_simplification_schema_preserves_v3_learning_fields() -> None:
@@ -186,33 +184,136 @@ def test_pdf_schema_and_prompt_keep_source_translation_separate_from_simplificat
     assert "english_translation ترجمة كاملة وأمينة لـ original_text" in prompt
     assert "ولا تلخّص أي قسم" in prompt
     assert "simplified_text وحده هو النسخة العربية المتكيفة" in prompt
+    assert "بحد أقصى ثمانية عناصر" in prompt
+    assert "بحد أقصى ست مراحل" in prompt
+    assert "بحد أقصى خمسة عناصر" in prompt
+    assert "thinking_level" not in generate.call_args.kwargs
 
 
-def test_pdf_schema_preserves_pydantic_collection_and_numeric_constraints() -> None:
+def test_pdf_schema_strips_constraints_rejected_by_gemini() -> None:
     schema = GeminiService._response_schema(PdfSimplificationOutput)
-    properties = schema["properties"]
+    schema_text = str(schema)
 
-    assert properties["preserved_details"]["minItems"] == 0
-    assert properties["preserved_details"]["maxItems"] == 8
-    assert properties["preserved_details_english"]["maxItems"] == 8
-    assert properties["learning_cards"]["maxItems"] == 3
-    assert properties["visual_steps"]["maxItems"] == 6
-    assert properties["change_map"]["maxItems"] == 5
-    assert properties["meaning_threads"]["maxItems"] == 6
-    assert properties["cultural_meanings"]["maxItems"] == 4
+    assert "maxItems" not in schema_text
+    assert "minItems" not in schema_text
+    assert "maximum" not in schema_text
+    assert "minimum" not in schema_text
+    assert "prefixItems" not in schema_text
 
-    bridge = properties["bridge"]["properties"]
-    assert bridge["levels"]["minItems"] == 3
-    assert bridge["levels"]["maxItems"] == 5
-    assert bridge["levels"]["items"]["properties"]["reintroduced_items"]["maxItems"] == 5
 
-    comprehension = properties["comprehension_check"]["properties"]
-    assert comprehension["choices"]["minItems"] == 3
-    assert comprehension["choices"]["maxItems"] == 3
-    assert comprehension["choices_english"]["minItems"] == 3
-    assert comprehension["choices_english"]["maxItems"] == 3
-    assert comprehension["correct_choice_index"]["minimum"] == 0
-    assert comprehension["correct_choice_index"]["maximum"] == 2
+def test_pdf_generation_caps_recoverable_lists_before_strict_validation() -> None:
+    transition = {
+        "simpler_phrase": "تعبير سهل",
+        "richer_phrase": "تعبير أغنى",
+        "explanation": "شرح موجز",
+        "explanation_english": "Brief explanation",
+    }
+    levels = [
+        {
+            "level": level,
+            "label_ar": "مرحلة",
+            "label_en": "Level",
+            "text": "نص",
+            "reintroduced_items": [transition] * 6,
+        }
+        for level in (1, 2, 3, 3, 4, 5)
+    ]
+    payload = {
+        "simplified_text": "نص عربي واضح",
+        "diacritized_text": "نص عربي واضح",
+        "english_translation": "Clear Arabic text",
+        "preserved_details": ["تفصيل"] * 9,
+        "preserved_details_english": ["Detail"] * 9,
+        "learning_cards": [
+            {
+                "term": "مصطلح",
+                "simple_meaning": "معنى",
+                "english_meaning": "Meaning",
+            }
+        ]
+        * 4,
+        "visual_steps": ["خطوة"] * 7,
+        "visual_steps_english": ["Step"] * 7,
+        "change_map": [
+            {
+                "original": "عبارة",
+                "clear": "عبارة واضحة",
+                "reason": "سبب",
+                "reason_english": "Reason",
+            }
+        ]
+        * 6,
+        "meaning_threads": [
+            {
+                "kind": "reference",
+                "sentence": "هذه جملة واضحة.",
+                "focus": "هذه",
+                "connects_to": "جملة",
+                "relation": "إحالة",
+                "relation_english": "Reference",
+                "explanation": "شرح الإحالة",
+                "explanation_english": "Reference explanation",
+            }
+        ]
+        * 7,
+        "cultural_meanings": [
+            {
+                "expression": "تعبير",
+                "kind": "metaphor",
+                "literal_meaning": "معنى حرفي",
+                "literal_meaning_english": "Literal meaning",
+                "intended_meaning": "معنى مقصود",
+                "cultural_context": "سياق",
+                "cultural_context_english": "Context",
+                "english_meaning": "Intended meaning",
+                "english_equivalent": "",
+            }
+        ]
+        * 5,
+        "bridge": {
+            "current_level": 2,
+            "guidance": "توجيه",
+            "guidance_english": "Guidance",
+            "levels": levels,
+        },
+        "comprehension_check": {
+            "question": "ما الإجابة؟",
+            "answer": "نعم",
+            "question_english": "What is the answer?",
+            "answer_english": "Yes",
+            "choices": ["لا", "نعم", "ربما", "إجابة إضافية"],
+            "choices_english": ["No", "Yes", "Maybe", "Extra answer"],
+            "correct_choice_index": 1,
+        },
+        "original_text": "النص العربي المستخرج من الملف",
+    }
+    response = Mock(status_code=200)
+    response.json.return_value = {"output_text": json.dumps(payload, ensure_ascii=False)}
+    client = Mock()
+    client.post.return_value = response
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        result = GeminiService("test-key", "gemini-primary")._generate(
+            "private request",
+            PdfSimplificationOutput,
+        )
+
+    assert len(result.preserved_details) == 8
+    assert len(result.preserved_details_english) == 8
+    assert len(result.learning_cards) == 3
+    assert len(result.visual_steps) == 6
+    assert len(result.visual_steps_english) == 6
+    assert len(result.change_map) == 5
+    assert len(result.meaning_threads) == 6
+    assert len(result.cultural_meanings) == 4
+    assert len(result.bridge.levels) == 5
+    assert result.bridge.levels[-1].level == SimplificationLevel.original
+    assert all(len(level.reintroduced_items) == 5 for level in result.bridge.levels)
+    assert len(result.comprehension_check.choices) == 3
+    assert len(result.comprehension_check.choices_english) == 3
 
 
 def test_poetry_schema_and_prompt_include_cultural_meanings() -> None:
@@ -495,8 +596,8 @@ def test_pdf_validation_logs_only_safe_error_locations_and_types(
         "simplified_text": private_pdf_text,
         "diacritized_text": private_pdf_text,
         "english_translation": "Private translation",
-        "preserved_details": [private_provider_detail] * 9,
-        "preserved_details_english": ["Private detail"] * 9,
+        "preserved_details": [private_provider_detail],
+        "preserved_details_english": ["Private detail"],
         "learning_cards": [],
         "visual_steps": [],
         "visual_steps_english": [],
@@ -509,7 +610,7 @@ def test_pdf_validation_logs_only_safe_error_locations_and_types(
             "guidance_english": "Guidance",
             "levels": [
                 {"level": level, "label_ar": "مرحلة", "label_en": "Level", "text": "نص"}
-                for level in (2, 3, 5)
+                for level in (2, 5)
             ],
         },
         "comprehension_check": {
@@ -539,9 +640,8 @@ def test_pdf_validation_logs_only_safe_error_locations_and_types(
                 PdfSimplificationOutput,
             )
 
-    assert "location': 'preserved_details'" in caplog.text
-    assert "location': 'preserved_details_english'" in caplog.text
-    assert "type': 'too_long'" in caplog.text
+    assert "location': 'bridge.levels'" in caplog.text
+    assert "type': 'too_short'" in caplog.text
     assert private_pdf_text not in caplog.text
     assert private_provider_detail not in caplog.text
     assert "Private translation" not in caplog.text

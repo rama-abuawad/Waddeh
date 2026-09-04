@@ -1,6 +1,7 @@
 import base64
 import copy
 import io
+import json
 import logging
 import re
 import wave
@@ -575,6 +576,10 @@ class GeminiService:
                     )
             response.raise_for_status()
             output_text = self._extract_output_text(response.json())
+            if output_model is PdfSimplificationOutput:
+                output_data = json.loads(output_text)
+                output_data = self._normalize_pdf_output_payload(output_data)
+                return output_model.model_validate(output_data)
             return output_model.model_validate_json(output_text)
         except GeminiConfigurationError:
             raise
@@ -679,6 +684,60 @@ class GeminiService:
         )
 
     @staticmethod
+    def _normalize_pdf_output_payload(payload: Any) -> Any:
+        """Cap recoverable PDF metadata lists before strict model validation."""
+        if not isinstance(payload, dict):
+            return payload
+
+        list_limits = {
+            "preserved_details": 8,
+            "preserved_details_english": 8,
+            "learning_cards": 3,
+            "visual_steps": 6,
+            "visual_steps_english": 6,
+            "change_map": 5,
+            "meaning_threads": 6,
+            "cultural_meanings": 4,
+        }
+        for field, limit in list_limits.items():
+            value = payload.get(field)
+            if isinstance(value, list) and len(value) > limit:
+                payload[field] = value[:limit]
+
+        bridge = payload.get("bridge")
+        if isinstance(bridge, dict):
+            levels = bridge.get("levels")
+            if isinstance(levels, list):
+                if len(levels) > 5:
+                    levels = [*levels[:4], levels[-1]]
+                    bridge["levels"] = levels
+                for level in levels:
+                    if not isinstance(level, dict):
+                        continue
+                    reintroduced_items = level.get("reintroduced_items")
+                    if isinstance(reintroduced_items, list) and len(reintroduced_items) > 5:
+                        level["reintroduced_items"] = reintroduced_items[:5]
+
+        comprehension = payload.get("comprehension_check")
+        if isinstance(comprehension, dict):
+            choices = comprehension.get("choices")
+            choices_english = comprehension.get("choices_english")
+            correct_index = comprehension.get("correct_choice_index")
+            if (
+                isinstance(choices, list)
+                and isinstance(choices_english, list)
+                and isinstance(correct_index, int)
+                and not isinstance(correct_index, bool)
+                and 0 <= correct_index <= 2
+            ):
+                if len(choices) > 3:
+                    comprehension["choices"] = choices[:3]
+                if len(choices_english) > 3:
+                    comprehension["choices_english"] = choices_english[:3]
+
+        return payload
+
+    @staticmethod
     def _extract_output_text(interaction: dict[str, object]) -> str:
         direct_output = interaction.get("output_text")
         if isinstance(direct_output, str) and direct_output:
@@ -772,10 +831,15 @@ class GeminiService:
                 "examples",
                 "maxLength",
                 "minLength",
+                "maxItems",
+                "minItems",
                 "pattern",
+                "maximum",
+                "minimum",
                 "exclusiveMaximum",
                 "exclusiveMinimum",
                 "multipleOf",
+                "prefixItems",
             }:
                 continue
             sanitized[key] = cls._sanitize_response_schema(
@@ -863,13 +927,13 @@ class GeminiService:
 - أنشئ diacritized_text من simplified_text نفسه، وأضف التشكيل للكلمات الصعبة أو الملتبسة فقط، لا لكل النص.
 - {translation_instruction}
 - لا تجعل الترجمة حرفية إذا كان ذلك سيشوّه المعنى، ولا تحذف أي شرط أو حقيقة.
-- ضع في preserved_details أهم الأسماء والتواريخ والأرقام والشروط والتحذيرات التي حافظت عليها. يمكن أن تكون القائمة فارغة.
+- ضع في preserved_details أهم الأسماء والتواريخ والأرقام والشروط والتحذيرات التي حافظت عليها، بحد أقصى ثمانية عناصر. يمكن أن تكون القائمة فارغة.
 - ترجم عناصر preserved_details بدقة وبالترتيب نفسه إلى preserved_details_english.
 - أنشئ بطاقتين أو ثلاثاً في learning_cards من المفردات العربية المفيدة، وتجنب الكلمات السهلة جداً.
 - إذا ظهرت مفردة متقنة في المصدر وكان إبقاؤها مناسباً للمستوى والمعنى، فلا تستبدلها لمجرد التبسيط.
 - إذا ظهرت مفردة ما زال القارئ يتعلّمها، فحاول إبقاءها مع شرحها في learning_cards بدلاً من حذفها، ما لم يجعل ذلك النص غير مناسب للمستوى.
 - أعط اهتماماً أكبر لجوانب الصعوبة المسجلة، لكن لا تدّع وجودها في النص إذا لم تظهر فعلاً.
-- إذا كان المحتوى يصف عملية أو تسلسلاً، ضع مراحله في visual_steps؛ وإلا أعد قائمة فارغة.
+- إذا كان المحتوى يصف عملية أو تسلسلاً، ضع مراحله في visual_steps بحد أقصى ست مراحل؛ وإلا أعد قائمة فارغة.
 - ترجم visual_steps بدقة وبالترتيب نفسه إلى visual_steps_english، أو أعد قائمة فارغة إذا كانت visual_steps فارغة.
 - في change_map، اربط ما يصل إلى خمس عبارات من المصدر بما يقابلها في النص الواضح، واشرح سبب التغيير بالعربية في reason وبالإنجليزية في reason_english.
 - أنشئ meaning_threads من صفر إلى ست علاقات مفيدة داخل جمل simplified_text فقط.
@@ -886,7 +950,7 @@ class GeminiService:
 - أنشئ bridge يوجه القارئ من المستوى الحالي نحو صياغة المصدر عبر 3 إلى 5 مستويات مرتبة.
 - يجب أن يحتوي bridge.levels على المستوى الحالي، ومستوى أو مستويين أغنى، ثم النص كما ورد إن أمكن.
 - لا تجعل مستويات bridge نسخاً متطابقة إلا إذا كان مستوى الهدف «كما ورد».
-- في كل انتقال، اشرح كلمة أو تركيباً أُعيد تقديمه ولماذا يساعد القارئ على فهم صياغة أغنى.
+- في كل انتقال، اشرح بحد أقصى خمسة عناصر من الكلمات أو التراكيب التي أُعيد تقديمها ولماذا تساعد القارئ على فهم صياغة أغنى.
 - أنشئ سؤال فهم واحداً وإجابة موجزة بالاعتماد على المصدر فقط، ثم أضف نسختهما الإنجليزية في question_english وanswer_english.
 - أضف ثلاث إجابات محتملة في choices وثلاث نسخ إنجليزية مطابقة في choices_english. يجب أن تكون واحدة فقط صحيحة، وأن تكون البدائل معقولة لكن غير مضللة.
 - اجعل الإجابة الصحيحة في الموضع نفسه في القائمتين، وضع رقم موضعها من 0 إلى 2 في correct_choice_index. يجب أن يطابق النص في الموضع الصحيح answer وanswer_english حرفياً.

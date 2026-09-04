@@ -1,5 +1,6 @@
 import base64
 import io
+import json
 import logging
 import wave
 from unittest.mock import Mock, patch
@@ -115,10 +116,12 @@ def test_simplification_schema_is_gemini_compatible() -> None:
     assert "maxLength" not in schema_text
     assert "minLength" not in schema_text
     assert "pattern" not in schema_text
-    assert "maxItems" not in schema_text
-    assert "minItems" not in schema_text
-    assert "maximum" not in schema_text
-    assert "minimum" not in schema_text
+    assert schema["properties"]["learning_cards"]["maxItems"] == 3
+    assert schema["properties"]["bridge"]["properties"]["levels"]["minItems"] == 3
+    assert schema["properties"]["bridge"]["properties"]["levels"]["maxItems"] == 5
+    comprehension = schema["properties"]["comprehension_check"]["properties"]
+    assert comprehension["correct_choice_index"]["minimum"] == 0
+    assert comprehension["correct_choice_index"]["maximum"] == 2
 
 
 def test_simplification_schema_preserves_v3_learning_fields() -> None:
@@ -183,6 +186,33 @@ def test_pdf_schema_and_prompt_keep_source_translation_separate_from_simplificat
     assert "english_translation ترجمة كاملة وأمينة لـ original_text" in prompt
     assert "ولا تلخّص أي قسم" in prompt
     assert "simplified_text وحده هو النسخة العربية المتكيفة" in prompt
+
+
+def test_pdf_schema_preserves_pydantic_collection_and_numeric_constraints() -> None:
+    schema = GeminiService._response_schema(PdfSimplificationOutput)
+    properties = schema["properties"]
+
+    assert properties["preserved_details"]["minItems"] == 0
+    assert properties["preserved_details"]["maxItems"] == 8
+    assert properties["preserved_details_english"]["maxItems"] == 8
+    assert properties["learning_cards"]["maxItems"] == 3
+    assert properties["visual_steps"]["maxItems"] == 6
+    assert properties["change_map"]["maxItems"] == 5
+    assert properties["meaning_threads"]["maxItems"] == 6
+    assert properties["cultural_meanings"]["maxItems"] == 4
+
+    bridge = properties["bridge"]["properties"]
+    assert bridge["levels"]["minItems"] == 3
+    assert bridge["levels"]["maxItems"] == 5
+    assert bridge["levels"]["items"]["properties"]["reintroduced_items"]["maxItems"] == 5
+
+    comprehension = properties["comprehension_check"]["properties"]
+    assert comprehension["choices"]["minItems"] == 3
+    assert comprehension["choices"]["maxItems"] == 3
+    assert comprehension["choices_english"]["minItems"] == 3
+    assert comprehension["choices_english"]["maxItems"] == 3
+    assert comprehension["correct_choice_index"]["minimum"] == 0
+    assert comprehension["correct_choice_index"]["maximum"] == 2
 
 
 def test_poetry_schema_and_prompt_include_cultural_meanings() -> None:
@@ -453,6 +483,69 @@ def test_gemini_logs_malformed_response_category_without_response_body(
     assert "output_schema=ExampleOutput" in caplog.text
     assert "malformed response body" not in caplog.text
     assert "private source text" not in caplog.text
+    assert "test-key" not in caplog.text
+
+
+def test_pdf_validation_logs_only_safe_error_locations_and_types(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    private_pdf_text = "نص خاص من ملف المستخدم"
+    private_provider_detail = "تفصيل خاص من استجابة النموذج"
+    payload = {
+        "simplified_text": private_pdf_text,
+        "diacritized_text": private_pdf_text,
+        "english_translation": "Private translation",
+        "preserved_details": [private_provider_detail] * 9,
+        "preserved_details_english": ["Private detail"] * 9,
+        "learning_cards": [],
+        "visual_steps": [],
+        "visual_steps_english": [],
+        "change_map": [],
+        "meaning_threads": [],
+        "cultural_meanings": [],
+        "bridge": {
+            "current_level": 2,
+            "guidance": "توجيه",
+            "guidance_english": "Guidance",
+            "levels": [
+                {"level": level, "label_ar": "مرحلة", "label_en": "Level", "text": "نص"}
+                for level in (2, 3, 5)
+            ],
+        },
+        "comprehension_check": {
+            "question": "ما الإجابة؟",
+            "answer": "نعم",
+            "question_english": "What is the answer?",
+            "answer_english": "Yes",
+            "choices": ["نعم", "لا", "ربما"],
+            "choices_english": ["Yes", "No", "Maybe"],
+            "correct_choice_index": 0,
+        },
+        "original_text": private_pdf_text,
+    }
+    response = Mock(status_code=200)
+    response.json.return_value = {"output_text": json.dumps(payload, ensure_ascii=False)}
+    client = Mock()
+    client.post.return_value = response
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+    caplog.set_level(logging.ERROR, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService("test-key", "gemini-primary")._generate(
+                "private request",
+                PdfSimplificationOutput,
+            )
+
+    assert "location': 'preserved_details'" in caplog.text
+    assert "location': 'preserved_details_english'" in caplog.text
+    assert "type': 'too_long'" in caplog.text
+    assert private_pdf_text not in caplog.text
+    assert private_provider_detail not in caplog.text
+    assert "Private translation" not in caplog.text
+    assert "private request" not in caplog.text
     assert "test-key" not in caplog.text
 
 

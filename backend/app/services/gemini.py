@@ -8,7 +8,7 @@ from functools import lru_cache
 from typing import Any, Literal, TypeVar
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 from app.schemas import (
@@ -615,6 +615,27 @@ class GeminiService:
                 output_model.__name__,
             )
             raise
+        except ValidationError as exc:
+            validation_errors = [
+                {
+                    "location": ".".join(str(part) for part in error["loc"]),
+                    "type": error["type"],
+                }
+                for error in exc.errors(
+                    include_url=False,
+                    include_context=False,
+                    include_input=False,
+                )
+            ]
+            logger.error(
+                "Gemini response validation failed model=%s output_schema=%s errors=%s",
+                attempted_model,
+                output_model.__name__,
+                validation_errors,
+            )
+            raise GeminiServiceError(
+                "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
+            ) from exc
         except Exception as exc:
             logger.error(
                 "Gemini response validation failed (%s) model=%s output_schema=%s",
@@ -752,14 +773,9 @@ class GeminiService:
                 "maxLength",
                 "minLength",
                 "pattern",
-                "maxItems",
-                "minItems",
-                "maximum",
-                "minimum",
                 "exclusiveMaximum",
                 "exclusiveMinimum",
                 "multipleOf",
-                "prefixItems",
             }:
                 continue
             sanitized[key] = cls._sanitize_response_schema(

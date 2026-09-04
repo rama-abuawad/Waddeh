@@ -1,4 +1,6 @@
+import logging
 import re
+from time import perf_counter
 from urllib.parse import unquote
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
@@ -34,11 +36,12 @@ from app.services.gemini import (
     PdfContentError,
     get_gemini_service,
 )
-from app.services.integrity import build_deterministic_integrity_report, combine_integrity_reports
+from app.services.integrity import build_deterministic_integrity_report
 from app.services.pdf_documents import InvalidPdfError, inspect_pdf
 from app.services.readability import assess_readability
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
@@ -94,48 +97,51 @@ async def simplify(
     request: SimplifyRequest,
     service: GeminiService = Depends(get_gemini_service),
 ) -> SimplifyResponse:
-    readability_result = assess_readability(request.text)
+    request_started_at = perf_counter()
     try:
-        result: SimplificationOutput = await run_in_threadpool(service.simplify, request)
-    except GeminiConfigurationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
-        ) from exc
-    except GeminiServiceError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="تعذر إكمال الطلب الآن. حاول مرة أخرى لاحقاً.",
-        ) from exc
+        readability_result = assess_readability(request.text)
+        generation_started_at = perf_counter()
+        try:
+            result: SimplificationOutput = await run_in_threadpool(service.simplify, request)
+        except GeminiConfigurationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="خدمة الذكاء الاصطناعي غير متاحة مؤقتاً.",
+            ) from exc
+        except GeminiServiceError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="تعذر إكمال الطلب الآن. حاول مرة أخرى لاحقاً.",
+            ) from exc
+        finally:
+            logger.info(
+                "Simplify main Gemini generation duration_seconds=%.3f",
+                perf_counter() - generation_started_at,
+            )
 
-    deterministic_integrity = build_deterministic_integrity_report(
-        source_text=request.text,
-        adapted_text=result.simplified_text,
-    )
-    semantic_integrity = None
-    try:
-        semantic_integrity = await run_in_threadpool(
-            service.verify_integrity,
-            request.text,
-            result.simplified_text,
+        integrity_started_at = perf_counter()
+        deterministic_integrity = build_deterministic_integrity_report(
+            source_text=request.text,
+            adapted_text=result.simplified_text,
         )
-    except GeminiServiceError:
-        deterministic_integrity.warnings.append(
-            "تعذر إجراء المراجعة الإضافية؛ ما زالت مراجعة الأرقام والتواريخ متاحة."
+        logger.info(
+            "Simplify deterministic integrity duration_seconds=%.3f",
+            perf_counter() - integrity_started_at,
         )
-    meaning_integrity = combine_integrity_reports(
-        deterministic=deterministic_integrity,
-        semantic=semantic_integrity,
-    )
 
-    return SimplifyResponse(
-        original_text=request.text,
-        reader=request.reader,
-        level=request.level,
-        readability=readability_result,
-        meaning_integrity=meaning_integrity,
-        **result.model_dump(),
-    )
+        return SimplifyResponse(
+            original_text=request.text,
+            reader=request.reader,
+            level=request.level,
+            readability=readability_result,
+            meaning_integrity=deterministic_integrity,
+            **result.model_dump(),
+        )
+    finally:
+        logger.info(
+            "Simplify total processing duration_seconds=%.3f",
+            perf_counter() - request_started_at,
+        )
 
 
 @app.post(

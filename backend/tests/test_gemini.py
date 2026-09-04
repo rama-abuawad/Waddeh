@@ -16,6 +16,7 @@ from app.schemas import (
     ReadingMemorySnapshot,
     SimplificationLevel,
     SimplificationOutput,
+    SimplifyRequest,
     TransferChallengeOutput,
     TransferChallengeRequest,
 )
@@ -46,6 +47,45 @@ def test_gemini_client_ignores_unavailable_environment_proxy() -> None:
     assert result == ExampleOutput(result="ok")
     client_class.assert_called_once_with(timeout=90.0, trust_env=False)
     response.raise_for_status.assert_called_once_with()
+
+
+def test_text_simplification_uses_one_low_thinking_generation_request() -> None:
+    service = GeminiService("test-key", "gemini-3.6-flash")
+    generated = Mock()
+
+    with patch.object(service, "_generate", return_value=generated) as generate:
+        result = service.simplify(
+            SimplifyRequest(
+                text="يجب على المتقدم تقديم ثلاثة مستندات قبل الموعد المحدد.",
+                reader=ReaderType.general_reader,
+                level=SimplificationLevel.easy,
+            )
+        )
+
+    assert result is generated
+    generate.assert_called_once()
+    assert generate.call_args.kwargs["output_model"] is SimplificationOutput
+    assert generate.call_args.kwargs["thinking_level"] == "low"
+    prompt = generate.call_args.kwargs["input_data"]
+    assert "english_translation" in prompt
+    assert "حافظ بدقة على جميع الأسماء والتواريخ والأرقام" in prompt
+    assert "الشروط والمتطلبات والتحذيرات والاستثناءات والحقائق التقنية" in prompt
+
+
+def test_interactions_payload_places_thinking_level_in_generation_config() -> None:
+    client = Mock()
+    service = GeminiService("test-key", "gemini-3.6-flash")
+
+    service._post_interaction(
+        client=client,
+        model="gemini-3.6-flash",
+        input_data="test input",
+        response_schema={"type": "object"},
+        thinking_level="low",
+    )
+
+    payload = client.post.call_args.kwargs["json"]
+    assert payload["generation_config"] == {"thinking_level": "low"}
 
 
 def test_simplification_schema_is_gemini_compatible() -> None:
@@ -326,6 +366,94 @@ def test_gemini_logs_safe_http_status_for_fallback_failure(caplog: pytest.LogCap
     assert "test input" not in caplog.text
     assert "test-key" not in caplog.text
     assert "x-goog-api-key" not in caplog.text
+
+
+def test_gemini_logs_timeout_category_without_sensitive_data(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    request = httpx.Request(
+        "POST",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+    )
+    client = Mock()
+    client.post.side_effect = httpx.ReadTimeout("secret timeout detail", request=request)
+
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    caplog.set_level(logging.WARNING, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService("test-key", "gemini-primary")._generate(
+                "private source text",
+                ExampleOutput,
+            )
+
+    assert "Gemini request timed out" in caplog.text
+    assert "model=gemini-primary" in caplog.text
+    assert "secret timeout detail" not in caplog.text
+    assert "private source text" not in caplog.text
+    assert "test-key" not in caplog.text
+
+
+def test_gemini_logs_network_failure_category(caplog: pytest.LogCaptureFixture) -> None:
+    request = httpx.Request(
+        "POST",
+        "https://generativelanguage.googleapis.com/v1beta/interactions",
+    )
+    client = Mock()
+    client.post.side_effect = httpx.ConnectError("connection failed", request=request)
+
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    caplog.set_level(logging.WARNING, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService("test-key", "gemini-primary")._generate(
+                "private source text",
+                ExampleOutput,
+            )
+
+    assert "Gemini network request failed (ConnectError)" in caplog.text
+    assert "model=gemini-primary" in caplog.text
+    assert "connection failed" not in caplog.text
+    assert "private source text" not in caplog.text
+    assert "test-key" not in caplog.text
+
+
+def test_gemini_logs_malformed_response_category_without_response_body(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    response = Mock(status_code=200)
+    response.json.return_value = {"output_text": "malformed response body"}
+
+    client = Mock()
+    client.post.return_value = response
+
+    context_manager = Mock()
+    context_manager.__enter__ = Mock(return_value=client)
+    context_manager.__exit__ = Mock(return_value=False)
+
+    caplog.set_level(logging.ERROR, logger="app.services.gemini")
+
+    with patch("app.services.gemini.httpx.Client", return_value=context_manager):
+        with pytest.raises(GeminiServiceError):
+            GeminiService("test-key", "gemini-primary")._generate(
+                "private source text",
+                ExampleOutput,
+            )
+
+    assert "Gemini response validation failed" in caplog.text
+    assert "model=gemini-primary" in caplog.text
+    assert "output_schema=ExampleOutput" in caplog.text
+    assert "malformed response body" not in caplog.text
+    assert "private source text" not in caplog.text
+    assert "test-key" not in caplog.text
 
 
 def test_gemini_tts_extracts_documented_output_audio_first() -> None:

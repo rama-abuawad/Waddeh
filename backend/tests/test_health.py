@@ -1,4 +1,5 @@
 import io
+import logging
 
 from fastapi.testclient import TestClient
 from pypdf import PdfWriter
@@ -18,7 +19,6 @@ from app.schemas import (
     PoetryLineExplanation,
     PoetryOutput,
     PoetryVocabularyItem,
-    SemanticIntegrityAssessment,
     SimplificationOutput,
     SimplificationLevel,
     TransferChallengeOutput,
@@ -157,16 +157,6 @@ class FakeGeminiService:
             **result.model_dump(),
         )
 
-    def verify_integrity(self, *_args: object) -> SemanticIntegrityAssessment:
-        return SemanticIntegrityAssessment(
-            status="no_issue_detected",
-            confidence=ConfidenceLevel.medium,
-            preserved_items=["الموعد المحدد محفوظ"],
-            changed_items=[],
-            missing_items=[],
-            warnings=[],
-        )
-
     def explain_word(self, _request: object) -> WordExplanation:
         return WordExplanation(
             word="المتقدم",
@@ -269,6 +259,46 @@ def test_simplify() -> None:
     assert response.json()["meaning_threads"][0]["kind"] == "pronoun"
     assert response.json()["cultural_meanings"][0]["expression"] == "الوقت من ذهب"
     assert response.json()["cultural_meanings"][0]["english_equivalent"] == "Time is money."
+
+
+def test_simplify_uses_one_generation_and_deterministic_integrity(caplog) -> None:
+    class CountingGeminiService(FakeGeminiService):
+        simplify_calls = 0
+        verify_integrity_calls = 0
+
+        def simplify(self, request: object) -> SimplificationOutput:
+            self.simplify_calls += 1
+            return super().simplify(request)
+
+        def verify_integrity(self, *_args: object) -> None:
+            self.verify_integrity_calls += 1
+            raise AssertionError("Semantic verification must not run on /api/simplify.")
+
+    service = CountingGeminiService()
+    app.dependency_overrides[get_gemini_service] = lambda: service
+    caplog.set_level(logging.INFO, logger="app.main")
+    try:
+        response = client.post(
+            "/api/simplify",
+            json={
+                "text": "يجب تقديم 3 مستندات قبل 30 أغسطس 2026 لإكمال الطلب.",
+                "reader": "general_reader",
+                "level": 2,
+            },
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert service.simplify_calls == 1
+    assert service.verify_integrity_calls == 0
+    integrity = response.json()["meaning_integrity"]
+    assert integrity["semantic_verification"] is None
+    assert integrity["deterministic_checks"]
+    assert integrity["status"] == "needs_attention"
+    assert "Simplify main Gemini generation duration_seconds=" in caplog.text
+    assert "Simplify deterministic integrity duration_seconds=" in caplog.text
+    assert "Simplify total processing duration_seconds=" in caplog.text
 
 
 def test_simplify_receives_personal_reading_memory() -> None:

@@ -5,7 +5,7 @@ import logging
 import re
 import wave
 from functools import lru_cache
-from typing import Any, TypeVar
+from typing import Any, Literal, TypeVar
 
 import httpx
 from pydantic import BaseModel
@@ -108,7 +108,11 @@ class GeminiService:
 {request.text}
 ---""",
         )
-        result = self._generate(input_data=prompt, output_model=SimplificationOutput)
+        result = self._generate(
+            input_data=prompt,
+            output_model=SimplificationOutput,
+            thinking_level="low",
+        )
         result.adaptation_strategy = build_adaptation_strategy(request.level)
         return result
 
@@ -530,6 +534,7 @@ class GeminiService:
         self,
         input_data: str | list[dict[str, str]],
         output_model: type[OutputModel],
+        thinking_level: Literal["minimal", "low", "medium", "high"] | None = None,
     ) -> OutputModel:
         if not self.api_key:
             raise GeminiConfigurationError(
@@ -548,6 +553,7 @@ class GeminiService:
                     model=self.model,
                     input_data=input_data,
                     response_schema=response_schema,
+                    thinking_level=thinking_level,
                 )
 
                 if (
@@ -565,6 +571,7 @@ class GeminiService:
                         model=self.fallback_model,
                         input_data=input_data,
                         response_schema=response_schema,
+                        thinking_level=thinking_level,
                     )
             response.raise_for_status()
             output_text = self._extract_output_text(response.json())
@@ -582,8 +589,39 @@ class GeminiService:
             raise GeminiServiceError(
                 "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
             ) from exc
+        except httpx.TimeoutException as exc:
+            logger.warning(
+                "Gemini request timed out model=%s fallback_attempted=%s",
+                attempted_model,
+                fallback_attempted,
+            )
+            raise GeminiServiceError(
+                "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
+            ) from exc
+        except httpx.RequestError as exc:
+            logger.warning(
+                "Gemini network request failed (%s) model=%s fallback_attempted=%s",
+                type(exc).__name__,
+                attempted_model,
+                fallback_attempted,
+            )
+            raise GeminiServiceError(
+                "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
+            ) from exc
+        except GeminiServiceError:
+            logger.error(
+                "Gemini returned a malformed response model=%s output_schema=%s",
+                attempted_model,
+                output_model.__name__,
+            )
+            raise
         except Exception as exc:
-            logger.error("Gemini request failed (%s).", type(exc).__name__)
+            logger.error(
+                "Gemini response validation failed (%s) model=%s output_schema=%s",
+                type(exc).__name__,
+                attempted_model,
+                output_model.__name__,
+            )
             raise GeminiServiceError(
                 "تعذر الحصول على نتيجة من خدمة الذكاء الاصطناعي."
             ) from exc
@@ -595,23 +633,28 @@ class GeminiService:
         model: str,
         input_data: str | list[dict[str, str]],
         response_schema: dict[str, Any],
+        thinking_level: Literal["minimal", "low", "medium", "high"] | None = None,
     ) -> httpx.Response:
+        payload: dict[str, Any] = {
+            "model": model,
+            "input": input_data,
+            "store": False,
+            "response_format": {
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": response_schema,
+            },
+        }
+        if thinking_level is not None:
+            payload["generation_config"] = {"thinking_level": thinking_level}
+
         return client.post(
             "https://generativelanguage.googleapis.com/v1beta/interactions",
             headers={
                 "x-goog-api-key": self.api_key,
                 "Content-Type": "application/json",
             },
-            json={
-                "model": model,
-                "input": input_data,
-                "store": False,
-                "response_format": {
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": response_schema,
-                },
-            },
+            json=payload,
         )
 
     @staticmethod

@@ -13,7 +13,7 @@ export type SpeechSource = "cloud" | "device" | null;
 
 const audioCache = new Map<string, Blob>();
 const AUDIO_CACHE_LIMIT = 10;
-const CLOUD_TTS_MAX_CHARACTERS = 600;
+export const CLOUD_TTS_MAX_CHARACTERS = 600;
 
 async function browserVoices(): Promise<SpeechSynthesisVoice[]> {
   if (!("speechSynthesis" in window)) return [];

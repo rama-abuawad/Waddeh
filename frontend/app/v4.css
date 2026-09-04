@@ -553,6 +553,8 @@ body {
 .v4-audio-play { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: 50%; background: var(--v4-teal); color: white; transition: transform 160ms ease, background 160ms ease; }
 .v4-audio-play:hover { background: var(--v4-teal-dark); }
 .v4-audio-play:active { transform: scale(.94); }
+.v4-audio-play:disabled { cursor: not-allowed; opacity: .55; }
+.v4-audio-play:disabled:hover { background: var(--v4-teal); }
 .v4-audio-play svg { width: 1rem; }
 .v4-audio-body { min-width: 0; }
 .v4-audio-heading { display: flex; align-items: center; gap: .6rem; color: var(--v4-ink); font-size: 0.65rem; font-weight: 800; }
